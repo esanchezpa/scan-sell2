@@ -70,3 +70,19 @@ Implementación de la capa de servicios (lógica de negocio) y los enrutadores (en
 `ANTIGRAVITY-FEATS-2-services`
 
 ---
+
+## Fase 3: Flutter Base — 2026-04-25 06:01 UTC-7
+
+### Resumen
+Se inicializó el cliente de Flutter con Riverpod, GoRouter, Dio y Google Fonts para proveer una base escalable y mantener el estilo visual del prototipo original.
+
+### Cambios Realizados
+- **Dependencias:** Instalados \lutter_riverpod\, \iverpod_annotation\, \go_router\, \dio\, \google_fonts\ y \uild_runner\.
+- **Theme:** Configurado \AppTheme.lightTheme\ (tonos azules, fondo blanco) preservando la identidad de VentaFácil.
+- **Router:** Establecida base de navegación con GoRouter (Dashboard, Catalog, Inventory, POS, Settings).
+- **API Client:** Cliente Dio configurado para apuntar a \http://localhost:8000/api/v1\.
+- **Build Runner:** Archivos generados correctamente.
+
+### Rama
+\ANTIGRAVITY-FEATS-3-flutter-base\`n
+---
