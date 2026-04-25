@@ -13,19 +13,19 @@ from app.models.inventory import StockBalance
 from app.models.sales import Sale
 
 async def seed_data():
-    engine = create_async_engine(settings.DATABASE_URL, echo=True)
+    engine = create_async_engine(settings.database_url, echo=True)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with async_session() as session:
         print("Creating demo business and store...")
-        business = Business(name="Mi Tiendita", tax_id="DEMO1234")
+        business = Business(name="Mi Tiendita")
         session.add(business)
         await session.flush()
 
         store = Store(business_id=business.id, name="Sucursal Principal", address="Av. Central 123")
         session.add(store)
 
-        user = User(business_id=business.id, username="admin", role="admin")
+        user = User(business_id=business.id, name="Admin", email="admin@ventafacil.com", role="admin")
         session.add(user)
 
         print("Creating categories...")
@@ -64,4 +64,6 @@ async def seed_data():
         print("Seed data applied successfully!")
 
 if __name__ == "__main__":
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(seed_data())

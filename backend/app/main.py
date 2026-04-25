@@ -11,7 +11,7 @@ app = FastAPI(
 )
 
 # CORS configuration
-origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else ["*"]
+origins = settings.cors_origins.split(",") if settings.cors_origins else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,4 +29,4 @@ app.include_router(app_settings.router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "environment": settings.APP_ENV}
+    return {"status": "ok", "environment": settings.app_env}

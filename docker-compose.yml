@@ -1,13 +1,13 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:14-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ventafacil
-      POSTGRES_PASSWORD: ventafacil
+      POSTGRES_USER: ventafacil_user
+      POSTGRES_PASSWORD: 123
       POSTGRES_DB: ventafacil_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

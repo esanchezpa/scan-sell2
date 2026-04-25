@@ -1,23 +1,23 @@
-# CHANGES.md ‚Äî Historial de Cambios VentaF√°cil
+# CHANGES.md √¢‚Ç¨‚Äù Historial de Cambios VentaF√É¬°cil
 
 > Este archivo es **append-only**. Cada fase agrega su bloque al final.
-> Formato: `## [Fase] ‚Äî YYYY-MM-DD HH:MM TZ`
+> Formato: `## [Fase] √¢‚Ç¨‚Äù YYYY-MM-DD HH:MM TZ`
 
 ---
 
-## Fase 0: Setup del Repositorio y Entorno Base ‚Äî 2026-04-25 05:46 UTC-7
+## Fase 0: Setup del Repositorio y Entorno Base √¢‚Ç¨‚Äù 2026-04-25 05:46 UTC-7
 
 ### Resumen
-Consolidaci√≥n inicial del monorepo. Se cre√≥ el repositorio remoto en GitHub, se configur√≥ el entorno de desarrollo, la estructura de carpetas definitiva y los archivos de infraestructura.
+Consolidaci√É¬≥n inicial del monorepo. Se cre√É¬≥ el repositorio remoto en GitHub, se configur√É¬≥ el entorno de desarrollo, la estructura de carpetas definitiva y los archivos de infraestructura.
 
 ### Cambios Realizados
 
 - **GitHub:** Creado repositorio privado `scan-sell2` en `https://github.com/esanchezpa/scan-sell2`.
 - **Git:** Repositorio local inicializado con `git init` y remote `origin` configurado.
-- **`.gitignore`:** A√±adido con cobertura para Python, Flutter/Dart, Node.js, variables de entorno, IDE y OS.
+- **`.gitignore`:** A√É¬±adido con cobertura para Python, Flutter/Dart, Node.js, variables de entorno, IDE y OS.
 - **`.env.example`:** Plantilla de variables de entorno creada con: `DATABASE_URL`, `REDIS_URL`, `APP_HOST`, `APP_PORT`, `CORS_ORIGINS`, `JWT_SECRET_KEY`, `OPENFOODFACTS_BASE_URL`.
-- **`README.md`:** Documentaci√≥n principal del proyecto con stack, estructura de monorepo, instrucciones de inicio y tabla de ramas.
-- **`docker-compose.yml`:** Definici√≥n de servicios `postgres` (v16-alpine) y `redis` (v7-alpine) con vol√∫menes persistentes.
+- **`README.md`:** Documentaci√É¬≥n principal del proyecto con stack, estructura de monorepo, instrucciones de inicio y tabla de ramas.
+- **`docker-compose.yml`:** Definici√É¬≥n de servicios `postgres` (v16-alpine) y `redis` (v7-alpine) con vol√É¬∫menes persistentes.
 - **`backend/`:** Estructura de carpetas FastAPI creada:
   - `app/main.py`, `app/config.py`, `app/database.py`
   - `app/routers/`, `app/services/`, `app/models/`, `app/schemas/`, `app/utils/`
@@ -35,51 +35,51 @@ Consolidaci√≥n inicial del monorepo. Se cre√≥ el repositorio remoto en GitHub, s
 
 ---
 
-## Fase 1: Modelos de Base de Datos ó 2026-04-25 05:56 UTC-7
+## Fase 1: Modelos de Base de Datos ‚Äî 2026-04-25 05:56 UTC-7
 
 ### Resumen
-Se crearon los modelos SQLAlchemy reflejando la estructura actual de PostgreSQL y se agregÛ una nueva tabla para las configuraciones de la aplicaciÛn.
+Se crearon los modelos SQLAlchemy reflejando la estructura actual de PostgreSQL y se agreg√≥ una nueva tabla para las configuraciones de la aplicaci√≥n.
 
 ### Cambios Realizados
 - **Dependencias:** Instalados FastAPI, SQLAlchemy, Alembic, psycopg, pydantic-settings, greenlet.
 - **Base de Datos:** Configurado async engine en `app/database.py` y lectura de entorno en `app/config.py`.
 - **Modelos:** Mapeados los esquemas de: `Business`, `Store`, `Category`, `Product`, `ProductBarcode`, `StockBalance`, `InventoryMovement`, `Sale`, `SaleItem`, `SalePayment`, `User`.
-- **Nueva Tabla:** Agregado el modelo `AppSetting` para soportar configuraciones din·micas (ej: display mode).
-- **Alembic:** Inicializado entorno asÌncrono y generada migraciÛn para la creaciÛn de `app_settings`.
+- **Nueva Tabla:** Agregado el modelo `AppSetting` para soportar configuraciones din√°micas (ej: display mode).
+- **Alembic:** Inicializado entorno as√≠ncrono y generada migraci√≥n para la creaci√≥n de `app_settings`.
 
 ### Rama
 `ANTIGRAVITY-FEATS-1-db-models`
 
 ---
 
-## Fase 2: Servicios y Endpoints (Backend) ó 2026-04-25 05:58 UTC-7
+## Fase 2: Servicios y Endpoints (Backend) ‚Äî 2026-04-25 05:58 UTC-7
 
 ### Resumen
-ImplementaciÛn de la capa de servicios (lÛgica de negocio) y los enrutadores (endpoints de la API) para las entidades principales en FastAPI.
+Implementaci√≥n de la capa de servicios (l√≥gica de negocio) y los enrutadores (endpoints de la API) para las entidades principales en FastAPI.
 
 ### Cambios Realizados
 - **Schemas (Pydantic):** Creados validadores para `products`, `inventory`, `sales`, `settings`.
 - **Servicios:**
-  - `products.py`: GestiÛn de productos y consulta por cÛdigo de barras.
+  - `products.py`: Gesti√≥n de productos y consulta por c√≥digo de barras.
   - `inventory.py`: Consulta de stock y registro de movimientos de inventario.
-  - `sales.py`: LÛgica transaccional atÛmica para crear ventas (guarda Sale, SaleItem, SalePayment y deduce el inventario).
-  - `settings.py`: GestiÛn de configuraciones globales del negocio (˙til para el display mode).
-- **Routers:** Implementados endpoints en `/api/v1/` para cada mÛdulo e integrados en `main.py`.
+  - `sales.py`: L√≥gica transaccional at√≥mica para crear ventas (guarda Sale, SaleItem, SalePayment y deduce el inventario).
+  - `settings.py`: Gesti√≥n de configuraciones globales del negocio (√∫til para el display mode).
+- **Routers:** Implementados endpoints en `/api/v1/` para cada m√≥dulo e integrados en `main.py`.
 
 ### Rama
 `ANTIGRAVITY-FEATS-2-services`
 
 ---
 
-## Fase 3: Flutter Base ó 2026-04-25 06:01 UTC-7
+## Fase 3: Flutter Base ‚Äî 2026-04-25 06:01 UTC-7
 
 ### Resumen
-Se inicializÛ el cliente de Flutter con Riverpod, GoRouter, Dio y Google Fonts para proveer una base escalable y mantener el estilo visual del prototipo original.
+Se inicializ√≥ el cliente de Flutter con Riverpod, GoRouter, Dio y Google Fonts para proveer una base escalable y mantener el estilo visual del prototipo original.
 
 ### Cambios Realizados
 - **Dependencias:** Instalados \lutter_riverpod\, \iverpod_annotation\, \go_router\, \dio\, \google_fonts\ y \uild_runner\.
-- **Theme:** Configurado \AppTheme.lightTheme\ (tonos azules, fondo blanco) preservando la identidad de VentaF·cil.
-- **Router:** Establecida base de navegaciÛn con GoRouter (Dashboard, Catalog, Inventory, POS, Settings).
+- **Theme:** Configurado \AppTheme.lightTheme\ (tonos azules, fondo blanco) preservando la identidad de VentaF√°cil.
+- **Router:** Establecida base de navegaci√≥n con GoRouter (Dashboard, Catalog, Inventory, POS, Settings).
 - **API Client:** Cliente Dio configurado para apuntar a \http://localhost:8000/api/v1\.
 - **Build Runner:** Archivos generados correctamente.
 
@@ -87,49 +87,66 @@ Se inicializÛ el cliente de Flutter con Riverpod, GoRouter, Dio y Google Fonts p
 \ANTIGRAVITY-FEATS-3-flutter-base\`n
 ---
 
-## Fase 4: Pantallas Flutter (Dashboard, Cat·logo, Inventario) ó 2026-04-25 06:02 UTC-7
+## Fase 4: Pantallas Flutter (Dashboard, Cat√°logo, Inventario) ‚Äî 2026-04-25 06:02 UTC-7
 
 ### Resumen
-Se crearon las interfaces gr·ficas iniciales para el Dashboard, Cat·logo de Productos y control de Inventario, aplicando el diseÒo UI/UX acordado (esquema azul/blanco, componentes limpios).
+Se crearon las interfaces gr√°ficas iniciales para el Dashboard, Cat√°logo de Productos y control de Inventario, aplicando el dise√±o UI/UX acordado (esquema azul/blanco, componentes limpios).
 
 ### Cambios Realizados
-- **Widgets:** Creado \AppDrawer\ compartido para la navegaciÛn principal.
+- **Widgets:** Creado \AppDrawer\ compartido para la navegaci√≥n principal.
 - **Pantallas:**
-  - \DashboardScreen\: Tarjetas de estadÌsticas de ventas y lista de transacciones recientes.
-  - \CatalogScreen\: Buscador integrado, lista de productos con botÛn de acciÛn para escaneo.
-  - \InventoryScreen\: Tabla de datos desplazable para visualizaciÛn de stock, umbrales y estado de inventario.
+  - \DashboardScreen\: Tarjetas de estad√≠sticas de ventas y lista de transacciones recientes.
+  - \CatalogScreen\: Buscador integrado, lista de productos con bot√≥n de acci√≥n para escaneo.
+  - \InventoryScreen\: Tabla de datos desplazable para visualizaci√≥n de stock, umbrales y estado de inventario.
 - **Routing:** Actualizado \pp_router.dart\ para enlazar las pantallas reales.
 
 ### Rama
 \ANTIGRAVITY-FEATS-4-screens\`n
 ---
 
-## Fase 5: Pantalla POS y Esc·ner HID ó 2026-04-25 06:04 UTC-7
+## Fase 5: Pantalla POS y Esc√°ner HID ‚Äî 2026-04-25 06:04 UTC-7
 
 ### Resumen
-Se diseÒÛ la interfaz central del sistema de ventas (POS) con un diseÒo responsivo para tablet y web, e integraciÛn con lectores de cÛdigo de barras mediante un \BarcodeListener\ (emulaciÛn de teclado HID).
+Se dise√±√≥ la interfaz central del sistema de ventas (POS) con un dise√±o responsivo para tablet y web, e integraci√≥n con lectores de c√≥digo de barras mediante un \BarcodeListener\ (emulaci√≥n de teclado HID).
 
 ### Cambios Realizados
-- **LÛgica de Escaneo:** Implementado el componente \BarcodeListener\ que intercepta pulsaciones de teclado r·pidas y las procesa como lecturas de cÛdigo de barras.
-- **Pantalla POS:** Creado \POSScreen\ con lista de compras (carrito), panel de acciones r·pidas (b˙squeda, descuento, cliente) y resumen de cobro.
-- **DiseÒo Responsivo:** Dividido el layout usando \Row\ y \Expanded\ en tablets/escritorio, y columnas simples en dispositivos mÛviles.
+- **L√≥gica de Escaneo:** Implementado el componente \BarcodeListener\ que intercepta pulsaciones de teclado r√°pidas y las procesa como lecturas de c√≥digo de barras.
+- **Pantalla POS:** Creado \POSScreen\ con lista de compras (carrito), panel de acciones r√°pidas (b√∫squeda, descuento, cliente) y resumen de cobro.
+- **Dise√±o Responsivo:** Dividido el layout usando \Row\ y \Expanded\ en tablets/escritorio, y columnas simples en dispositivos m√≥viles.
 - **Rutas:** Configurado el acceso a la pantalla desde GoRouter.
 
 ### Rama
 \ANTIGRAVITY-FEATS-5-pos\`n
 ---
 
-## Fase 6: ConfiguraciÛn, C·mara y Seed Data ó 2026-04-25 06:05 UTC-7
+## Fase 6: Configuraci√≥n, C√°mara y Seed Data ‚Äî 2026-04-25 06:05 UTC-7
 
 ### Resumen
-Se finalizÛ la base de la aplicaciÛn implementando las configuraciones del sistema, integraciones con c·mara y OpenFoodFacts, asÌ como un script de Seed Data para pruebas r·pidas.
+Se finaliz√≥ la base de la aplicaci√≥n implementando las configuraciones del sistema, integraciones con c√°mara y OpenFoodFacts, as√≠ como un script de Seed Data para pruebas r√°pidas.
 
 ### Cambios Realizados
-- **ConfiguraciÛn:** Implementada \SettingsScreen\ para cambiar entre modo Autom·tico, MÛvil y Tablet.
-- **Esc·ner de C·mara:** Agregada dependencia \mobile_scanner\ y creada \CameraScannerScreen\ para leer cÛdigos vÌa hardware.
-- **API Externa:** Creado \OpenFoodFactsService\ para buscar productos globales mediante su cÛdigo de barras.
-- **Base de Datos:** Creado \ackend/scripts/seed_data.py\ que inserta un negocio, sucursal, categorÌas y productos de prueba en PostgreSQL.
+- **Configuraci√≥n:** Implementada \SettingsScreen\ para cambiar entre modo Autom√°tico, M√≥vil y Tablet.
+- **Esc√°ner de C√°mara:** Agregada dependencia \mobile_scanner\ y creada \CameraScannerScreen\ para leer c√≥digos v√≠a hardware.
+- **API Externa:** Creado \OpenFoodFactsService\ para buscar productos globales mediante su c√≥digo de barras.
+- **Base de Datos:** Creado \ackend/scripts/seed_data.py\ que inserta un negocio, sucursal, categor√≠as y productos de prueba en PostgreSQL.
 
 ### Rama
 \ANTIGRAVITY-FEATS-6-final\`n
+---
+
+## Fase 7: Correcciones de Base de Datos y Backend - 2026-04-25 06:15 UTC-7
+
+### Resumen
+Se resolvieron problemas de privilegios de esquema en PostgreSQL 15+, asegurando la correcta conexi√≥n del backend con la base de datos a trav√©s de Docker y corrigiendo dependencias de configuraci√≥n en FastAPI.
+
+### Cambios Realizados
+- **Base de Datos:** Se cambi√≥ la versi√≥n de PostgreSQL a `14-alpine` en `docker-compose.yml` para evitar restricciones estrictas del esquema `public` introducidas en versiones superiores.
+- **Conexi√≥n DB:** Se configur√≥ `.env` para usar `127.0.0.1` en lugar de `localhost` para evitar ruteo a IPv6 (WSL) y asegurar conexi√≥n directa al contenedor Docker. Tambi√©n se corrigi√≥ el driver as√≠ncrono para Alembic.
+- **Migraciones:** Se recre√≥ la migraci√≥n inicial (`62ea25842e8a_initial_migration.py`) despu√©s de limpiar el estado anterior. `alembic upgrade head` aplicado con √©xito.
+- **FastAPI:** Se corrigi√≥ un error de sintaxis en `backend/app/main.py` ajustando `settings.CORS_ORIGINS` y `settings.APP_ENV` a notaci√≥n snake_case (`settings.cors_origins` y `settings.app_env`) requerida por Pydantic V2.
+- **Semilla (Seed Data):** Se ejecut√≥ con √©xito el script `seed_data.py`, poblando la base de datos de PostgreSQL con un negocio, tienda, usuarios, y productos.
+
+### Rama
+`ANTIGRAVITY-FEATS-7-backend-fixes`
+
 ---
