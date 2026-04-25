@@ -86,3 +86,20 @@ Se inicializó el cliente de Flutter con Riverpod, GoRouter, Dio y Google Fonts p
 ### Rama
 \ANTIGRAVITY-FEATS-3-flutter-base\`n
 ---
+
+## Fase 4: Pantallas Flutter (Dashboard, Catálogo, Inventario) — 2026-04-25 06:02 UTC-7
+
+### Resumen
+Se crearon las interfaces gráficas iniciales para el Dashboard, Catálogo de Productos y control de Inventario, aplicando el diseño UI/UX acordado (esquema azul/blanco, componentes limpios).
+
+### Cambios Realizados
+- **Widgets:** Creado \AppDrawer\ compartido para la navegación principal.
+- **Pantallas:**
+  - \DashboardScreen\: Tarjetas de estadísticas de ventas y lista de transacciones recientes.
+  - \CatalogScreen\: Buscador integrado, lista de productos con botón de acción para escaneo.
+  - \InventoryScreen\: Tabla de datos desplazable para visualización de stock, umbrales y estado de inventario.
+- **Routing:** Actualizado \pp_router.dart\ para enlazar las pantallas reales.
+
+### Rama
+\ANTIGRAVITY-FEATS-4-screens\`n
+---
