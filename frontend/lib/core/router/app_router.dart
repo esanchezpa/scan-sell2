@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/inventory/presentation/inventory_screen.dart';
+import '../../features/pos/presentation/pos_screen.dart';
 
 part 'app_router.g.dart';
 
@@ -46,7 +47,7 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: '/pos',
         name: 'pos',
-        builder: (context, state) => const DummyScreen(title: 'POS'),
+        builder: (context, state) => const POSScreen(),
       ),
       GoRoute(
         path: '/settings',

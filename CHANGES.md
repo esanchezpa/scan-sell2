@@ -103,3 +103,18 @@ Se crearon las interfaces gráficas iniciales para el Dashboard, Catálogo de Prod
 ### Rama
 \ANTIGRAVITY-FEATS-4-screens\`n
 ---
+
+## Fase 5: Pantalla POS y Escáner HID — 2026-04-25 06:04 UTC-7
+
+### Resumen
+Se diseñó la interfaz central del sistema de ventas (POS) con un diseño responsivo para tablet y web, e integración con lectores de código de barras mediante un \BarcodeListener\ (emulación de teclado HID).
+
+### Cambios Realizados
+- **Lógica de Escaneo:** Implementado el componente \BarcodeListener\ que intercepta pulsaciones de teclado rápidas y las procesa como lecturas de código de barras.
+- **Pantalla POS:** Creado \POSScreen\ con lista de compras (carrito), panel de acciones rápidas (búsqueda, descuento, cliente) y resumen de cobro.
+- **Diseño Responsivo:** Dividido el layout usando \Row\ y \Expanded\ en tablets/escritorio, y columnas simples en dispositivos móviles.
+- **Rutas:** Configurado el acceso a la pantalla desde GoRouter.
+
+### Rama
+\ANTIGRAVITY-FEATS-5-pos\`n
+---
