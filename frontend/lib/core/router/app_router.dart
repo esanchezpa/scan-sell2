@@ -6,11 +6,12 @@ import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/inventory/presentation/inventory_screen.dart';
 import '../../features/pos/presentation/pos_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 part 'app_router.g.dart';
 
 @riverpod
-GoRouter appRouter(AppRouterRef ref) {
+GoRouter appRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,

@@ -150,3 +150,17 @@ Se resolvieron problemas de privilegios de esquema en PostgreSQL 15+, asegurando
 `ANTIGRAVITY-FEATS-7-backend-fixes`
 
 ---
+
+## Fase 8: Retorno a Diseño Web Original y Abandono de Flutter — 2026-04-25 04:05 UTC-7
+
+### Resumen
+Siguiendo la solicitud del usuario, se ha revertido el trabajo de la Fase 4 y se ha decidido abandonar el desarrollo en Flutter para volver al diseño visual predeterminado del prototipo React (Vite + TanStack). El foco ahora es la integración de esta aplicación web con el backend FastAPI existente.
+
+### Cambios Realizados
+- **Dirección de Proyecto:** Se cancelan las fases 4, 5 y 6 que estaban orientadas a Flutter.
+- **Frontend:** Se ha activado el servidor de desarrollo de React (`npm run dev`) en la raíz del proyecto.
+- **Backend:** Se mantiene el backend de la Fase 7 (FastAPI + PostgreSQL) como fuente de verdad.
+- **Plan de Implementación:** Actualizado para reflejar la integración de React con la API.
+
+### Rama
+`ANTIGRAVITY-FEATS-8-react-revert`
