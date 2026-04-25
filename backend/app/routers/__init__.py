@@ -1,1 +1,1 @@
-"""Routers package — VentaFácil Backend"""
+"""Routers package"""

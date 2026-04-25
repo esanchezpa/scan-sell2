@@ -51,3 +51,22 @@ Se crearon los modelos SQLAlchemy reflejando la estructura actual de PostgreSQL 
 `ANTIGRAVITY-FEATS-1-db-models`
 
 ---
+
+## Fase 2: Servicios y Endpoints (Backend) — 2026-04-25 05:58 UTC-7
+
+### Resumen
+Implementación de la capa de servicios (lógica de negocio) y los enrutadores (endpoints de la API) para las entidades principales en FastAPI.
+
+### Cambios Realizados
+- **Schemas (Pydantic):** Creados validadores para `products`, `inventory`, `sales`, `settings`.
+- **Servicios:**
+  - `products.py`: Gestión de productos y consulta por código de barras.
+  - `inventory.py`: Consulta de stock y registro de movimientos de inventario.
+  - `sales.py`: Lógica transaccional atómica para crear ventas (guarda Sale, SaleItem, SalePayment y deduce el inventario).
+  - `settings.py`: Gestión de configuraciones globales del negocio (útil para el display mode).
+- **Routers:** Implementados endpoints en `/api/v1/` para cada módulo e integrados en `main.py`.
+
+### Rama
+`ANTIGRAVITY-FEATS-2-services`
+
+---
