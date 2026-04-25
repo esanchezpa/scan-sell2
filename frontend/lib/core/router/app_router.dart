@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -6,22 +5,9 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/inventory/presentation/inventory_screen.dart';
 import '../../features/pos/presentation/pos_screen.dart';
+import '../../features/settings/presentation/settings_screen.dart';
 
 part 'app_router.g.dart';
-
-// Dummy screens for Phase 3 to satisfy the router
-class DummyScreen extends StatelessWidget {
-  final String title;
-  const DummyScreen({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Text('Placeholder for $title')),
-    );
-  }
-}
 
 @riverpod
 GoRouter appRouter(AppRouterRef ref) {
@@ -52,7 +38,7 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: '/settings',
         name: 'settings',
-        builder: (context, state) => const DummyScreen(title: 'Settings'),
+        builder: (context, state) => const SettingsScreen(),
       ),
     ],
   );

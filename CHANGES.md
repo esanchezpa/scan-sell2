@@ -118,3 +118,18 @@ Se diseñó la interfaz central del sistema de ventas (POS) con un diseño responsi
 ### Rama
 \ANTIGRAVITY-FEATS-5-pos\`n
 ---
+
+## Fase 6: Configuración, Cámara y Seed Data — 2026-04-25 06:05 UTC-7
+
+### Resumen
+Se finalizó la base de la aplicación implementando las configuraciones del sistema, integraciones con cámara y OpenFoodFacts, así como un script de Seed Data para pruebas rápidas.
+
+### Cambios Realizados
+- **Configuración:** Implementada \SettingsScreen\ para cambiar entre modo Automático, Móvil y Tablet.
+- **Escáner de Cámara:** Agregada dependencia \mobile_scanner\ y creada \CameraScannerScreen\ para leer códigos vía hardware.
+- **API Externa:** Creado \OpenFoodFactsService\ para buscar productos globales mediante su código de barras.
+- **Base de Datos:** Creado \ackend/scripts/seed_data.py\ que inserta un negocio, sucursal, categorías y productos de prueba en PostgreSQL.
+
+### Rama
+\ANTIGRAVITY-FEATS-6-final\`n
+---
