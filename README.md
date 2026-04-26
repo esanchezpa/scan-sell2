@@ -1,87 +1,231 @@
-# VentaFácil
+# VentaFacil POS
 
-> POS e inventario para tienda pequeña — Flutter + FastAPI + PostgreSQL
+> Version estable 1.0.0 - POS web e inventario para tienda pequena, con escaneo de codigos de barra, catalogo, ventas, stock e imagenes de productos.
+
+## Estado del proyecto
+
+VentaFacil POS 1.0.0 consolida el retorno al frontend web React y el backend FastAPI como base estable del producto. El frontend activo esta en `src/`; el directorio `frontend/` pertenece a la etapa Flutter anterior y ya no es la app principal.
 
 ## Stack
 
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | Flutter (Riverpod · GoRouter · Dio) |
-| Backend | Python 3.12 + FastAPI + SQLAlchemy |
-| Base de datos | PostgreSQL |
-| Cache (opcional) | Redis |
-| Escáner principal | Lector HID físico (teclado) |
-| Escáner secundario | Cámara (activable desde Settings) |
+| Capa | Tecnologia |
+|------|------------|
+| Frontend | React 19, Vite 7, TanStack Router/Start, Zustand, Radix UI, Tailwind CSS |
+| Backend | Python, FastAPI async, SQLAlchemy async, Pydantic |
+| Base de datos | PostgreSQL con Alembic |
+| Cache opcional | Redis |
+| Escaneo | Lector HID tipo teclado y camara con ZXing |
+| Integracion externa | OpenFoodFacts via backend con cache local |
 
-## Estructura del monorepo
+## Funcionalidades 1.0
 
-```
+- Catalogo de productos con busqueda, imagen, categoria, precio, costo, stock y alerta de bajo stock.
+- Creacion, edicion, eliminacion logica y reactivacion de productos.
+- Lookup de barcode interno primero, incluyendo productos desactivados.
+- Reactivacion de productos inactivos desde escaneo con `PATCH /products/{id}/reactivate`.
+- Punto de venta con carrito, cantidades, totales y registro de venta.
+- Descuento de inventario y movimientos de stock al completar ventas.
+- Historial de ventas.
+- Carga de imagenes servidas por backend desde `/images`.
+- Settings de accesibilidad y persistencia frontend con Zustand.
+- Grafo arquitectonico generado con graphify en `graphify-out/`.
+
+## Estructura
+
+```text
 scan-sell2/
-├── backend/          # FastAPI + SQLAlchemy + Alembic
-├── frontend/         # Flutter app
-├── src/              # Prototipo React/TanStack (solo referencia visual)
-├── docs_init/        # Blueprints y planes de implementación
-├── .env.example      # Variables de entorno requeridas (copiar a .env)
-├── docker-compose.yml
-└── CHANGES.md        # Historial de cambios por fase
+|-- backend/                 # FastAPI, SQLAlchemy, Alembic
+|   |-- app/main.py          # App FastAPI, CORS, routers, static /images
+|   |-- app/routers/         # products, barcode, sales, inventory, settings
+|   |-- app/services/        # logica de negocio
+|   |-- app/models/          # modelos SQLAlchemy
+|   |-- app/schemas/         # schemas Pydantic
+|   |-- alembic/             # migraciones
+|-- src/                     # frontend React activo
+|   |-- routes/              # paginas TanStack Router
+|   |-- components/          # dialogos, scanner, layout, UI
+|   |-- hooks/               # listener global de barcode
+|   |-- lib/api.ts           # cliente HTTP
+|   |-- lib/store.ts         # estado global Zustand y mappers
+|-- graphify-out/            # grafo de arquitectura generado
+|-- docs_init/               # documentos historicos de planificacion
+|-- docker-compose.yml       # postgres y redis locales
+|-- package.json             # scripts frontend
+|-- README.md
 ```
 
-## Inicio rápido
+## Inicio rapido
 
-### 1. Clonar y configurar entorno
+### 1. Clonar y configurar
 
 ```bash
 git clone https://github.com/esanchezpa/scan-sell2.git
 cd scan-sell2
 cp .env.example .env
-# Editar .env con tus valores reales
 ```
 
-### 2. Levantar infraestructura (opcional, Docker)
+Edita `.env` con tu `DATABASE_URL`, `REDIS_URL`, CORS e `IMAGES_DIR`.
+
+### 2. Levantar infraestructura local
 
 ```bash
 docker compose up -d postgres redis
 ```
+
+Nota: `docker-compose.yml` expone PostgreSQL en `127.0.0.1:5433`. Si usas PostgreSQL local en `5432`, ajusta `DATABASE_URL`.
 
 ### 3. Backend
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/Scripts/activate   # Windows: .venv\Scripts\activate
+.venv\Scripts\activate
 pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 4. Frontend (Flutter)
+Health check:
 
 ```bash
-cd frontend
-flutter pub get
-flutter run
+curl http://127.0.0.1:8000/health
 ```
 
-## Arquitectura de datos
+### 4. Frontend
 
-PostgreSQL es la única fuente oficial de stock, ventas y reportes.
-Redis es opcional: cache, rate-limiting y pub/sub. Nunca stock oficial.
+Desde la raiz del repo:
 
-## Ramas de desarrollo
+```bash
+npm install
+npm run dev
+```
 
-Cada fase se desarrolla en una rama `ANTIGRAVITY-FEATS-[nombre]`:
+App local:
 
-| Rama | Contenido |
-|------|-----------|
-| `ANTIGRAVITY-FEATS-0-setup` | Estructura base, .gitignore, entornos |
-| `ANTIGRAVITY-FEATS-1-db-models` | Modelos SQLAlchemy, Alembic, settings |
-| `ANTIGRAVITY-FEATS-2-services` | FastAPI routers y servicios |
-| `ANTIGRAVITY-FEATS-3-flutter-base` | Flutter theme, routing, API client |
-| `ANTIGRAVITY-FEATS-4-flutter-catalog` | Dashboard, Catálogo, Inventario |
-| `ANTIGRAVITY-FEATS-5-flutter-pos` | POS, carrito, HID scanner |
-| `ANTIGRAVITY-FEATS-6-final-integration` | Cámara, Settings (modos), seed data |
+```text
+http://localhost:5173
+```
 
-## Notas
+Build de produccion:
 
-- El archivo `.env` nunca se sube al repositorio.
-- Ver `CHANGES.md` para el historial detallado de cambios por fase.
+```bash
+npm run build
+```
+
+## Variables clave
+
+Backend:
+
+```env
+DATABASE_URL=postgresql+psycopg://ventafacil_user:123@127.0.0.1:5433/ventafacil_dev
+REDIS_URL=redis://127.0.0.1:6379/0
+APP_HOST=127.0.0.1
+APP_PORT=8000
+APP_ENV=development
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000
+OPENFOODFACTS_BASE_URL=https://world.openfoodfacts.org/api/v2
+OPENFOODFACTS_TIMEOUT=5000
+IMAGES_DIR=C:\ruta\absoluta\a\scan-sell2\images
+```
+
+Frontend:
+
+```env
+VITE_BUSINESS_ID=6
+VITE_STORE_ID=6
+```
+
+Si esas variables no existen, el cliente usa `BUSINESS_ID=6` y `STORE_ID=6`.
+
+## API principal
+
+Base URL local:
+
+```text
+http://localhost:8000/api/v1
+```
+
+Productos:
+
+- `GET /products?business_id=6`
+- `GET /products/{product_id}`
+- `POST /products`
+- `PATCH /products/{product_id}`
+- `DELETE /products/{product_id}`
+- `PATCH /products/{product_id}/reactivate`
+- `GET /products/barcode/{barcode}?business_id=6`
+- `GET /products/barcode-exists/{barcode}?business_id=6`
+- `POST /products/upload-image`
+- `GET /products/categories/?business_id=6`
+
+Barcode:
+
+- `GET /barcode/lookup/{barcode}?business_id=6&store_id=6`
+
+Ventas:
+
+- `POST /sales`
+- `GET /sales/history?business_id=6`
+
+Inventario:
+
+- `GET /inventory/stock/{store_id}`
+- `POST /inventory/movement`
+
+Settings:
+
+- `GET /settings/`
+- `PUT /settings/`
+
+## Flujo de reactivacion de productos
+
+Cuando se escanea un barcode que pertenece a un producto interno con `is_active=false`:
+
+1. El backend responde desde `/barcode/lookup` con `source="internal"`, `status="inactive"` y `product_id`.
+2. El frontend muestra confirmacion de reactivacion.
+3. `ProductDialog` abre en modo `reactivate` con todos los datos internos del producto.
+4. El submit llama `PATCH /products/{product_id}/reactivate`.
+5. El backend actualiza el producto, restaura `is_active=true`, upsertea `stock_balances` y registra `inventory_movements.reference_type="product_reactivation"`.
+
+## Graphify
+
+El grafo de arquitectura de esta version esta en:
+
+- `graphify-out/graph.html`: visualizacion interactiva.
+- `graphify-out/graph.json`: grafo estructurado.
+- `graphify-out/GRAPH_REPORT.md`: reporte de comunidades, nodos y flujos.
+- `graphify-out/manifest.json`: manifest para actualizaciones incrementales.
+
+Resumen actual del grafo:
+
+- 345 nodos
+- 456 relaciones
+- 17 comunidades
+- Flujos destacados: reactivacion de producto, venta/inventario, contrato frontend-backend.
+
+## Verificacion recomendada
+
+```bash
+cd backend
+.venv\Scripts\python.exe -m compileall app
+
+cd ..
+npm run build
+git diff --check
+```
+
+Para validar reactivacion en Network:
+
+- `GET /api/v1/barcode/lookup/{barcode}?business_id=6&store_id=6`
+- `PATCH /api/v1/products/{product_id}/reactivate`
+- No debe aparecer `POST /api/v1/products` durante reactivacion.
+
+## Ramas relevantes
+
+- `codex/feat-product-reactivation-flow`: rama actual con reactivacion de productos y documentacion 1.0.
+- `ANTIGRAVITY-FEATS-8-react-revert`: base de retorno a React.
+- `ANTIGRAVITY-FEATS-7-backend-fixes`: fixes previos de backend.
+
+## Notas de release 1.0.0
+
+Esta version estabiliza la arquitectura React + FastAPI + PostgreSQL y deja fuera el camino Flutter como app principal. Los siguientes pasos recomendados para 1.1 son endurecer constraints de BD, tests automatizados de flujos criticos, control de stock negativo, autenticacion/roles y endpoints de reportes.

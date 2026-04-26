@@ -172,3 +172,19 @@ Se decidió abandonar el desarrollo en Flutter para mantener la fidelidad al dis
 
 ### Rama
 `ANTIGRAVITY-FEATS-8-react-revert`
+
+---
+
+## Release 1.0.0: Version estable React + FastAPI - 2026-04-26
+
+### Resumen
+Se consolida la version estable 1.0.0 de VentaFacil POS con frontend React activo, backend FastAPI/PostgreSQL, flujo de escaneo, ventas, inventario y reactivacion de productos desactivados.
+
+### Cambios Realizados
+- **Documentacion:** README actualizado para reflejar el stack real, comandos actuales, endpoints principales, variables de entorno y flujo de reactivacion.
+- **Release:** `package.json` actualizado a `ventafacil-pos` version `1.0.0`.
+- **Arquitectura:** Se agrega referencia al grafo generado con graphify (`graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`).
+- **Higiene:** Se excluyen artefactos locales de agentes, cache de graphify e imagenes runtime del control de versiones.
+
+### Rama
+`codex/feat-product-reactivation-flow`

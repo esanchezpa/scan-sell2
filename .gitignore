@@ -69,6 +69,14 @@ node_modules/
 out/
 dist/
 .cache/
+.wrangler/
+
+# --- Local agent/runtime artifacts ---
+.kilo/
+images/
+graphify-out/.graphify_python
+graphify-out/cache/
+graphify-out/cost.json
 
 # --- OS ---
 .DS_Store
