@@ -1,5 +1,10 @@
-const API_BASE_URL = "http://localhost:8000/api/v1";
-const IMAGE_BASE_URL = "http://localhost:8000";
+const normalizeBaseUrl = (value: unknown, fallback: string) => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  return (raw || fallback).replace(/\/+$/, "");
+};
+
+const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL, "/api/v1");
+const IMAGE_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_IMAGE_BASE_URL, "");
 export const BUSINESS_ID = Number(import.meta.env.VITE_BUSINESS_ID ?? 6);
 export const STORE_ID = Number(import.meta.env.VITE_STORE_ID ?? 6);
 
@@ -35,6 +40,22 @@ export interface ReactivateProductPayload {
   stock_quantity?: number;
 }
 
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = response.statusText || "Unknown error";
+  const text = await response.text().catch(() => "");
+  if (!text) return fallback;
+
+  try {
+    const error = JSON.parse(text);
+    if (typeof error.detail === "string") return error.detail;
+    if (Array.isArray(error.detail)) return error.detail.map((item) => item.msg ?? item).join(", ");
+    if (typeof error.message === "string") return error.message;
+    return JSON.stringify(error);
+  } catch {
+    return text;
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -45,8 +66,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(error.detail || response.statusText);
+    throw new Error(await readErrorMessage(response));
   }
 
   return response.json();
@@ -56,7 +76,7 @@ export const api = {
   getImageUrl: (path: string) => {
     if (!path) return null;
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
-    return `${IMAGE_BASE_URL}${path}`;
+    return `${IMAGE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
   },
   products: {
     list: () => request<any[]>(`/products/?business_id=${BUSINESS_ID}`),
@@ -68,13 +88,19 @@ export const api = {
     delete: (id: string) => request<void>(`/products/${id}`, { method: "DELETE" }),
     reactivate: (id: string | number, data: ReactivateProductPayload) =>
       request<any>(`/products/${id}/reactivate`, { method: "PATCH", body: JSON.stringify(data) }),
-    uploadImage: (file: File) => {
+    uploadImage: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
-      return fetch(`${API_BASE_URL}/products/upload-image`, {
+      const response = await fetch(`${API_BASE_URL}/products/upload-image`, {
         method: "POST",
         body: formData,
-      }).then(r => r.json());
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      return response.json();
     },
   },
   inventory: {

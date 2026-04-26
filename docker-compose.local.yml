@@ -67,6 +67,11 @@ services:
       args:
         VITE_BUSINESS_ID: 1
         VITE_STORE_ID: 1
+        VITE_API_BASE_URL: /api/v1
+        VITE_IMAGE_BASE_URL: ""
+        VITE_DEV_PROXY_TARGET: http://backend:8000
+    environment:
+      VITE_DEV_PROXY_TARGET: http://backend:8000
     restart: unless-stopped
     ports:
       - "5173:5173"

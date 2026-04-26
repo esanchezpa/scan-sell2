@@ -236,6 +236,9 @@ npm run build
 
 ### Notas comunes de ejecucion
 
+- El frontend usa por defecto rutas relativas (`/api/v1` y `/images`) y Vite las proxya al backend.
+- En Docker el proxy apunta a `http://backend:8000`; sin Docker apunta a `http://127.0.0.1:8000`.
+- Evita configurar `VITE_API_BASE_URL=http://localhost:8000/api/v1` si la app se abrira desde otra maquina, porque ese `localhost` seria la maquina cliente.
 - Los logs tecnicos persistentes del backend se guardan en `logs/backend-YYYYMMDD-HH.log` y `logs/backend-errors-YYYYMMDD-HH.log`.
 - Los logs se particionan por hora y conservan 14 dias por defecto.
 - Los logs SQL de SQLAlchemy y los access logs HTTP no se guardan en archivos persistentes por defecto para evitar crecimiento excesivo.
@@ -260,6 +263,9 @@ IMAGES_DIR=C:\ruta\absoluta\a\scan-sell2\images
 SEED_DEMO_DATA=true
 VITE_BUSINESS_ID=1
 VITE_STORE_ID=1
+VITE_API_BASE_URL=/api/v1
+VITE_IMAGE_BASE_URL=
+VITE_DEV_PROXY_TARGET=http://127.0.0.1:8000
 ```
 
 Backend con Neon:
@@ -276,9 +282,14 @@ IMAGES_DIR=C:\ruta\absoluta\a\scan-sell2\images
 SEED_DEMO_DATA=false
 VITE_BUSINESS_ID=6
 VITE_STORE_ID=6
+VITE_API_BASE_URL=/api/v1
+VITE_IMAGE_BASE_URL=
+VITE_DEV_PROXY_TARGET=http://127.0.0.1:8000
 ```
 
 Si `VITE_BUSINESS_ID` y `VITE_STORE_ID` no existen, el cliente usa `BUSINESS_ID=6` y `STORE_ID=6`. Para Docker local con seed demo, normalmente son `1` y `1`; para la base compartida en Neon, valida los IDs reales antes de construir el frontend.
+
+En Docker, `VITE_DEV_PROXY_TARGET` se fija internamente como `http://backend:8000`. En ejecucion sin Docker, el valor recomendado es `http://127.0.0.1:8000`.
 
 ## API principal
 

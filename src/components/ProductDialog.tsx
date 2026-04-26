@@ -529,11 +529,11 @@ export function ProductDialog({
         const fullUrl = api.getImageUrl(res.image_url);
         setImageUrl(fullUrl ?? res.image_url);
         setImageUrlPath(res.image_url);
-      } catch {
+      } catch (error) {
         URL.revokeObjectURL(localUrl);
         setImageUrl("");
         setImageUrlPath("");
-        toast.error("Error al subir imagen");
+        toast.error((error as Error).message || "Error al subir imagen");
       } finally {
         setImageUploading(false);
       }
