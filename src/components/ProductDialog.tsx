@@ -56,6 +56,26 @@ interface ProductDialogProps {
   source?: ProductDialogSource;
 }
 
+type ProductFormSnapshot = {
+  name: string;
+  barcode: string;
+  category: ProductCategory;
+  categoryId: number | null;
+  price: string;
+  cost: string;
+  stock: string;
+  alert: string;
+  imageUrl: string;
+  imageUrlPath: string;
+  barcodeError: string;
+  barcodeChecking: boolean;
+  barcodeChanged: boolean;
+  deletedProductId: number | null;
+  reactivatedProduct: Product | null;
+  pendingReactivationId: number | null;
+  dialogMode: "create" | "edit" | "reactivate";
+};
+
 export function ProductDialog({
   open,
   onClose,
@@ -67,6 +87,7 @@ export function ProductDialog({
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
   const reactivateProduct = useStore((s) => s.reactivateProduct);
+  const queueProductForSale = useStore((s) => s.queueProductForSale);
 
   const [name, setName] = useState(initial?.name ?? "");
   const [barcode, setBarcode] = useState(initial?.barcode ?? "");
@@ -93,8 +114,80 @@ export function ProductDialog({
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | "reactivate">("create");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const offLookupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hidBufferRef = useRef("");
+  const hidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hidStartedBarcodeRef = useRef("");
+  const hidStartedFormRef = useRef<ProductFormSnapshot | null>(null);
   const initialBarcodeRef = useRef(initial?.barcode);
+  const barcodeValueRef = useRef(barcode);
+  const formSnapshotRef = useRef<ProductFormSnapshot | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    barcodeValueRef.current = barcode;
+  }, [barcode]);
+
+  useEffect(() => {
+    formSnapshotRef.current = {
+      name,
+      barcode,
+      category,
+      categoryId,
+      price,
+      cost,
+      stock,
+      alert,
+      imageUrl,
+      imageUrlPath,
+      barcodeError,
+      barcodeChecking,
+      barcodeChanged,
+      deletedProductId,
+      reactivatedProduct,
+      pendingReactivationId,
+      dialogMode,
+    };
+  }, [
+    alert,
+    barcode,
+    barcodeChanged,
+    barcodeChecking,
+    barcodeError,
+    category,
+    categoryId,
+    cost,
+    deletedProductId,
+    dialogMode,
+    imageUrl,
+    imageUrlPath,
+    name,
+    pendingReactivationId,
+    price,
+    reactivatedProduct,
+    stock,
+  ]);
+
+  const restoreFormSnapshot = (snapshot: ProductFormSnapshot | null | undefined) => {
+    if (!snapshot) return;
+    setName(snapshot.name);
+    setBarcode(snapshot.barcode);
+    barcodeValueRef.current = snapshot.barcode;
+    setCategory(snapshot.category);
+    setCategoryId(snapshot.categoryId);
+    setPrice(snapshot.price);
+    setCost(snapshot.cost);
+    setStock(snapshot.stock);
+    setAlert(snapshot.alert);
+    setImageUrl(snapshot.imageUrl);
+    setImageUrlPath(snapshot.imageUrlPath);
+    setBarcodeError(snapshot.barcodeError);
+    setBarcodeChecking(snapshot.barcodeChecking);
+    setBarcodeChanged(snapshot.barcodeChanged);
+    setDeletedProductId(snapshot.deletedProductId);
+    setReactivatedProduct(snapshot.reactivatedProduct);
+    setPendingReactivationId(snapshot.pendingReactivationId);
+    setDialogMode(snapshot.dialogMode);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -107,6 +200,10 @@ export function ProductDialog({
       setDeletedProductId(null);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (offLookupRef.current) clearTimeout(offLookupRef.current);
+      if (hidTimerRef.current) clearTimeout(hidTimerRef.current);
+      hidBufferRef.current = "";
+      hidStartedBarcodeRef.current = "";
+      hidStartedFormRef.current = null;
     } else {
       const nextMode = mode ?? (initial ? "edit" : "create");
       const nextImageUrl = initial?.imageUrl ?? initial?.image_url ?? "";
@@ -137,6 +234,10 @@ export function ProductDialog({
       setSubmitting(false);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (offLookupRef.current) clearTimeout(offLookupRef.current);
+      if (hidTimerRef.current) clearTimeout(hidTimerRef.current);
+      hidBufferRef.current = "";
+      hidStartedBarcodeRef.current = "";
+      hidStartedFormRef.current = null;
 
       if (nextMode === "create" && !initial && barcodeProp && barcodeProp.trim()) {
         if (offLookupRef.current) clearTimeout(offLookupRef.current);
@@ -144,6 +245,115 @@ export function ProductDialog({
       }
     }
   }, [open, initial, barcodeProp, mode]);
+
+  const startNewRegistrationFromBarcode = (code: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (offLookupRef.current) clearTimeout(offLookupRef.current);
+
+    setName("");
+    setBarcode(code);
+    barcodeValueRef.current = code;
+    setCategory("Otros");
+    setCategoryId(null);
+    setPrice("");
+    setCost("");
+    setStock("");
+    setAlert("5");
+    setImageUrl("");
+    setImageUrlPath("");
+    setBarcodeError("");
+    setBarcodeChecking(false);
+    setBarcodeChanged(false);
+    setDeletedProductId(null);
+    setReactivatedProduct(null);
+    setPendingReactivationId(null);
+    setDialogMode("create");
+    initialBarcodeRef.current = code;
+
+    offLookupRef.current = setTimeout(() => lookupBarcodeInfo(code), 50);
+    barcodeInputRef.current?.focus();
+  };
+
+  const handlePhysicalBarcodeScan = (
+    code: string,
+    startedBarcode: string,
+    startedForm?: ProductFormSnapshot | null,
+  ) => {
+    if (initial || dialogMode !== "create" || submitting || aiLoading) return;
+
+    const currentBarcode = startedBarcode.trim() || barcodeValueRef.current.trim();
+    if (currentBarcode && currentBarcode === code) {
+      restoreFormSnapshot(startedForm);
+      setBarcode(code);
+      barcodeValueRef.current = code;
+      lookupBarcodeInfo(code);
+      barcodeInputRef.current?.focus();
+      return;
+    }
+
+    if (currentBarcode && currentBarcode !== code) {
+      if (!confirm("Desea cancelar este registro y registrar uno nuevo?")) {
+        restoreFormSnapshot(startedForm);
+        barcodeInputRef.current?.focus();
+        return;
+      }
+    }
+
+    startNewRegistrationFromBarcode(code);
+  };
+
+  useEffect(() => {
+    if (!open || scannerOpen || initial || dialogMode !== "create") return;
+
+    const resetHidBuffer = () => {
+      hidBufferRef.current = "";
+      hidStartedBarcodeRef.current = "";
+      hidStartedFormRef.current = null;
+      if (hidTimerRef.current) {
+        clearTimeout(hidTimerRef.current);
+        hidTimerRef.current = null;
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (/^\d$/.test(e.key)) {
+        if (!hidBufferRef.current) {
+          hidStartedBarcodeRef.current = barcodeValueRef.current.trim();
+          hidStartedFormRef.current = formSnapshotRef.current;
+        }
+        hidBufferRef.current += e.key;
+        if (hidTimerRef.current) clearTimeout(hidTimerRef.current);
+        hidTimerRef.current = setTimeout(resetHidBuffer, 120);
+        return;
+      }
+
+      if (e.key === "Enter" && hidBufferRef.current.length >= 8) {
+        const code = hidBufferRef.current.trim();
+        const startedBarcode = hidStartedBarcodeRef.current;
+        const startedForm = hidStartedFormRef.current;
+        resetHidBuffer();
+
+        if (/^\d{8,14}$/.test(code)) {
+          e.preventDefault();
+          e.stopPropagation();
+          handlePhysicalBarcodeScan(code, startedBarcode, startedForm);
+        }
+        return;
+      }
+
+      if (e.key !== "Tab") {
+        resetHidBuffer();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      resetHidBuffer();
+    };
+  }, [aiLoading, dialogMode, initial, open, scannerOpen, submitting]);
 
   const lookupBarcodeInfo = async (code: string) => {
     if (!code.trim() || initial) return;
@@ -340,11 +550,7 @@ export function ProductDialog({
   };
 
   const notifyProductSavedForSale = (product: Product) => {
-    window.dispatchEvent(
-      new CustomEvent<Product>("ventafacil:product-saved-for-sale", {
-        detail: product,
-      }),
-    );
+    queueProductForSale(product);
   };
 
   const doSubmit = async (addToSale = false) => {
@@ -490,6 +696,7 @@ export function ProductDialog({
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <button
+                  type="button"
                   onClick={onPhoto}
                   disabled={imageUploading}
                   className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-primary-soft text-primary-soft-foreground transition-colors hover:bg-accent disabled:opacity-50"
@@ -707,10 +914,9 @@ export function ProductDialog({
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onDetected={(code) => {
-          setBarcode(code);
-          if (!initial && code.trim()) {
-            setTimeout(() => lookupBarcodeInfo(code), 50);
-          }
+          const trimmed = code.trim();
+          if (!trimmed) return;
+          handlePhysicalBarcodeScan(trimmed, barcodeValueRef.current.trim());
         }}
       />
     </>

@@ -1,10 +1,10 @@
 # VentaFacil POS
 
-> Version estable 1.0.0 - POS web e inventario para tienda pequena, con escaneo de codigos de barra, catalogo, ventas, stock e imagenes de productos.
+> Version estable 1.0.2 - POS web e inventario para tienda pequena, con escaneo de codigos de barra, catalogo, ventas, stock e imagenes de productos.
 
 ## Estado del proyecto
 
-VentaFacil POS 1.0.0 consolida el retorno al frontend web React y el backend FastAPI como base estable del producto. El frontend activo esta en `src/`; el directorio `frontend/` pertenece a la etapa Flutter anterior y ya no es la app principal.
+VentaFacil POS 1.0.2 consolida el retorno al frontend web React y el backend FastAPI como base estable del producto. El frontend activo esta en `src/`; el directorio `frontend/` pertenece a la etapa Flutter anterior y ya no es la app principal.
 
 ## Stack
 
@@ -58,7 +58,7 @@ scan-sell2/
 
 ### Opcion recomendada para usuario final local
 
-En Windows, la forma mas simple de ejecutar VentaFacil POS 1.0.0 en otra maquina es con Docker Desktop.
+En Windows, la forma mas simple de ejecutar VentaFacil POS 1.0.2 en otra maquina es con Docker Desktop.
 
 Requisitos:
 
@@ -267,6 +267,10 @@ Para validar reactivacion en Network:
 - `codex/feat-product-reactivation-flow`: rama actual con reactivacion de productos y documentacion 1.0.
 - `ANTIGRAVITY-FEATS-8-react-revert`: base de retorno a React.
 - `ANTIGRAVITY-FEATS-7-backend-fixes`: fixes previos de backend.
+
+## Notas de release 1.0.2
+
+Esta version refuerza el flujo POS de venta y catalogo: el stock se descuenta con validacion atomica, los movimientos de inventario quedan firmados/auditables, y `Guardar y agregar` desde una venta agrega el producto creado o reactivado al carrito activo. El stack Docker local tambien siembra movimientos `initial_stock` para los productos demo.
 
 ## Notas de release 1.0.0
 

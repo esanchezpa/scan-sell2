@@ -79,13 +79,20 @@ async def create_product(product_in: ProductCreate, db: AsyncSession = Depends(g
         elif error_msg.startswith("PRODUCT_INACTIVE_EXISTS:"):
             product_id = error_msg.split(":")[1]
             raise HTTPException(status_code=409, detail=f"PRODUCT_INACTIVE_EXISTS:{product_id}")
+        elif error_msg == "STOCK_CANNOT_BE_NEGATIVE":
+            raise HTTPException(status_code=400, detail="STOCK_CANNOT_BE_NEGATIVE")
         else:
             raise
 
 
 @router.patch("/{product_id}", response_model=ProductResponse)
 async def update_product(product_id: int, product_in: ProductUpdate, db: AsyncSession = Depends(get_db)):
-    product = await ProductService.update_product(db, product_id, product_in)
+    try:
+        product = await ProductService.update_product(db, product_id, product_in)
+    except ValueError as e:
+        if str(e) == "STOCK_CANNOT_BE_NEGATIVE":
+            raise HTTPException(status_code=400, detail="STOCK_CANNOT_BE_NEGATIVE")
+        raise
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
@@ -137,6 +144,8 @@ async def reactivate_and_update_product(
             raise HTTPException(status_code=404, detail="Product not found")
         if error_msg == "CATEGORY_NOT_FOUND":
             raise HTTPException(status_code=400, detail="Category does not belong to business")
+        if error_msg == "STOCK_CANNOT_BE_NEGATIVE":
+            raise HTTPException(status_code=400, detail="STOCK_CANNOT_BE_NEGATIVE")
         raise
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")

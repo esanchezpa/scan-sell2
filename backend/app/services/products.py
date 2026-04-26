@@ -72,6 +72,9 @@ class ProductService:
         product_id: int,
         stock: int,
     ) -> None:
+        if stock < 0:
+            raise ValueError("STOCK_CANNOT_BE_NEGATIVE")
+
         insert_stmt = pg_insert(StockBalance).values(
             store_id=store_id,
             product_id=product_id,
@@ -89,6 +92,89 @@ class ProductService:
             },
         )
         await session.execute(upsert_stmt)
+
+    @staticmethod
+    async def _get_store_stock(
+        session: AsyncSession,
+        *,
+        store_id: int,
+        product_id: int,
+    ) -> int:
+        stock_query = select(func.coalesce(func.sum(StockBalance.stock), 0)).where(
+            StockBalance.store_id == store_id,
+            StockBalance.product_id == product_id,
+        )
+        stock_result = await session.execute(stock_query)
+        return int(stock_result.scalar() or 0)
+
+    @staticmethod
+    def _add_inventory_movement(
+        session: AsyncSession,
+        *,
+        business_id: int,
+        store_id: int,
+        product_id: int,
+        movement_type: str,
+        quantity: int,
+        reference_type: str,
+        reference_id: Optional[int] = None,
+        notes: Optional[str] = None,
+        record_zero: bool = False,
+    ) -> None:
+        if quantity == 0 and not record_zero:
+            return
+
+        session.add(
+            InventoryMovement(
+                business_id=business_id,
+                store_id=store_id,
+                product_id=product_id,
+                movement_type=movement_type,
+                quantity=quantity,
+                reference_type=reference_type,
+                reference_id=reference_id,
+                notes=notes,
+            )
+        )
+
+    @staticmethod
+    async def _set_stock_balance_with_audit(
+        session: AsyncSession,
+        *,
+        business_id: int,
+        store_id: int,
+        product_id: int,
+        stock: int,
+        movement_type: str,
+        reference_type: str,
+        reference_id: Optional[int] = None,
+        notes: Optional[str] = None,
+        record_zero: bool = False,
+    ) -> int:
+        current_stock = await ProductService._get_store_stock(
+            session,
+            store_id=store_id,
+            product_id=product_id,
+        )
+        await ProductService._set_stock_balance(
+            session,
+            store_id=store_id,
+            product_id=product_id,
+            stock=stock,
+        )
+        ProductService._add_inventory_movement(
+            session,
+            business_id=business_id,
+            store_id=store_id,
+            product_id=product_id,
+            movement_type=movement_type,
+            quantity=stock - current_stock,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            notes=notes,
+            record_zero=record_zero,
+        )
+        return stock
 
     @staticmethod
     def _build_product_response(
@@ -197,11 +283,15 @@ class ProductService:
         if product_in.stock is not None:
             store = await ProductService._get_default_store(session, product.business_id)
             if store:
-                await ProductService._set_stock_balance(
+                await ProductService._set_stock_balance_with_audit(
                     session,
+                    business_id=product.business_id,
                     store_id=store.id,
                     product_id=product_id,
                     stock=product_in.stock,
+                    movement_type="adjustment",
+                    reference_type="product_update",
+                    reference_id=product_id,
                 )
 
         session.add(product)
@@ -321,28 +411,31 @@ class ProductService:
         await session.flush()
 
         if stock_quantity is not None:
-            await ProductService._set_stock_balance(
+            await ProductService._set_stock_balance_with_audit(
                 session,
-                store_id=store_id,
-                product_id=product_id,
-                stock=stock_quantity,
-            )
-            movement = InventoryMovement(
                 business_id=business_id,
                 store_id=store_id,
                 product_id=product_id,
+                stock=stock_quantity,
                 movement_type="adjustment",
-                quantity=stock_quantity,
                 reference_type="product_reactivation",
+                reference_id=product_id,
+                record_zero=True,
             )
-            session.add(movement)
+            response_stock_quantity = stock_quantity
+        else:
+            response_stock_quantity = await ProductService._get_store_stock(
+                session,
+                store_id=store_id,
+                product_id=product_id,
+            )
 
         await session.commit()
         await session.refresh(product)
         return ProductService._build_product_response(
             product,
             category_name=resolved_category_name,
-            stock_quantity=stock_quantity if stock_quantity is not None else 0,
+            stock_quantity=response_stock_quantity,
         )
 
     @staticmethod
@@ -397,11 +490,15 @@ class ProductService:
         if product_in.stock is not None and product_in.stock > 0:
             store = await ProductService._get_default_store(session, product_in.business_id)
             if store:
-                await ProductService._set_stock_balance(
+                await ProductService._set_stock_balance_with_audit(
                     session,
+                    business_id=product_in.business_id,
                     store_id=store.id,
                     product_id=db_product.id,
                     stock=product_in.stock,
+                    movement_type="initial_stock",
+                    reference_type="product_creation",
+                    reference_id=db_product.id,
                 )
 
         await session.flush()

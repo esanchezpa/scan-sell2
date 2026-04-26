@@ -103,6 +103,7 @@ interface StoreState {
     mode?: ProductDialogMode;
     source?: ProductDialogSource;
   };
+  queuedSaleProduct: Product | null;
   saleDialogOpen: boolean;
   salesRouteActive: boolean;
 
@@ -114,6 +115,8 @@ interface StoreState {
   setSalesRouteActive: (active: boolean) => void;
   openProductDialog: (initialOrOptions?: Product | OpenProductDialogOptions, barcode?: string, mode?: ProductDialogMode) => void;
   closeProductDialog: () => void;
+  queueProductForSale: (product: Product) => void;
+  consumeQueuedSaleProduct: () => void;
 
   addProduct: (p: Omit<Product, "id">) => Promise<Product>;
   updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
@@ -239,6 +242,7 @@ export const useStore = create<StoreState>()(
 
       accessibilityScale: 1,
       productDialog: { open: false },
+      queuedSaleProduct: null,
       saleDialogOpen: false,
       salesRouteActive: false,
 
@@ -289,6 +293,8 @@ export const useStore = create<StoreState>()(
         });
       },
       closeProductDialog: () => set({ productDialog: { open: false } }),
+      queueProductForSale: (product) => set({ queuedSaleProduct: product }),
+      consumeQueuedSaleProduct: () => set({ queuedSaleProduct: null }),
 
       addProduct: async (p) => {
         const product = await api.products.create({

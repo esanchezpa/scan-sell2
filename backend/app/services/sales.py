@@ -18,29 +18,34 @@ class SalesService:
         """
         # Validate totals in a real implementation (sum of items vs subtotal)
 
-        stock_deltas: dict[int, int] = defaultdict(int)
+        stock_requirements: dict[int, int] = defaultdict(int)
         for item_in in sale_in.items:
             if item_in.product_id:
-                stock_deltas[item_in.product_id] += item_in.quantity
+                stock_requirements[item_in.product_id] += item_in.quantity
 
-        if stock_deltas:
-            product_ids = list(stock_deltas.keys())
-            stock_query = select(
-                StockBalance.product_id,
-                StockBalance.stock,
-            ).where(
-                StockBalance.store_id == sale_in.store_id,
-                StockBalance.product_id.in_(product_ids),
+        if stock_requirements:
+            product_ids = list(stock_requirements.keys())
+            required_case = case(
+                dict(stock_requirements),
+                value=StockBalance.product_id,
+                else_=0,
             )
-            stock_result = await session.execute(stock_query)
-            stock_map = {row.product_id: row.stock for row in stock_result}
-
-            insufficient_products = [
-                product_id
-                for product_id, required_quantity in stock_deltas.items()
-                if stock_map.get(product_id, 0) < required_quantity
-            ]
-            if insufficient_products:
+            stock_update = (
+                update(StockBalance)
+                .where(
+                    StockBalance.store_id == sale_in.store_id,
+                    StockBalance.product_id.in_(product_ids),
+                    StockBalance.stock >= required_case,
+                )
+                .values(
+                    stock=StockBalance.stock - required_case,
+                    updated_at=func.now(),
+                )
+                .returning(StockBalance.product_id)
+            )
+            stock_result = await session.execute(stock_update)
+            updated_product_ids = set(stock_result.scalars().all())
+            if updated_product_ids != set(product_ids):
                 raise ValueError("STOCK_INSUFFICIENT")
 
         # 1. Create Sale
@@ -58,7 +63,7 @@ class SalesService:
         session.add(db_sale)
         await session.flush() # Get sale ID
 
-        # 2. Add Sale Items, accumulate stock deltas, and record movements
+        # 2. Add Sale Items and record signed inventory movements
         sale_items: list[SaleItem] = []
         for item_in in sale_in.items:
             db_item = SaleItem(
@@ -75,31 +80,12 @@ class SalesService:
                     store_id=sale_in.store_id,
                     product_id=item_in.product_id,
                     movement_type="sale",
-                    quantity=item_in.quantity,
+                    quantity=-item_in.quantity,
                     reference_type="sale",
                     reference_id=db_sale.id,
                     created_by=sale_in.cashier_id
                 )
                 session.add(movement)
-
-        if stock_deltas:
-            delta_case = case(
-                stock_deltas,
-                value=StockBalance.product_id,
-                else_=0,
-            )
-            update_stmt = (
-                update(StockBalance)
-                .where(
-                    StockBalance.store_id == sale_in.store_id,
-                    StockBalance.product_id.in_(list(stock_deltas.keys())),
-                )
-                .values(
-                    stock=StockBalance.stock - delta_case,
-                    updated_at=func.now(),
-                )
-            )
-            await session.execute(update_stmt)
 
         # 3. Add Payments
         sale_payments: list[SalePayment] = []

@@ -15,8 +15,14 @@ class InventoryService:
 
     @staticmethod
     async def register_movement(session: AsyncSession, movement_in: InventoryMovementCreate) -> InventoryMovement:
-        # Create the movement record
-        movement = InventoryMovement(**movement_in.model_dump())
+        movement_data = movement_in.model_dump()
+        quantity = movement_data["quantity"]
+        if movement_data["movement_type"] == "sale" and quantity > 0:
+            quantity = -quantity
+        movement_data["quantity"] = quantity
+
+        # Create the movement record with signed quantity.
+        movement = InventoryMovement(**movement_data)
         session.add(movement)
         
         # Update or create the stock balance
@@ -27,17 +33,13 @@ class InventoryService:
         result = await session.execute(query)
         stock_balance = result.scalars().first()
 
-        net_quantity = movement_in.quantity if movement_in.movement_type in ("purchase", "return", "initial_stock") else -movement_in.quantity
-        if movement_in.movement_type == "adjustment":
-            net_quantity = movement_in.quantity # the API should pass the difference or absolute? For now, diff
-
         if stock_balance:
-            stock_balance.stock += net_quantity
+            stock_balance.stock += quantity
         else:
             stock_balance = StockBalance(
                 store_id=movement_in.store_id,
                 product_id=movement_in.product_id,
-                stock=net_quantity
+                stock=quantity
             )
             session.add(stock_balance)
 

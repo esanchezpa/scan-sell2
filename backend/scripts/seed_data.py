@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.models.core import Business, Store, User
 from app.models.product import Category, Product, ProductBarcode
-from app.models.inventory import StockBalance
+from app.models.inventory import InventoryMovement, StockBalance
 
 async def seed_data():
     engine = create_async_engine(settings.database_url, echo=False)
@@ -60,6 +60,28 @@ async def seed_data():
         stock1 = StockBalance(store_id=store.id, product_id=coca_cola.id, stock=50)
         stock2 = StockBalance(store_id=store.id, product_id=sabritas.id, stock=30)
         session.add_all([stock1, stock2])
+        session.add_all([
+            InventoryMovement(
+                business_id=business.id,
+                store_id=store.id,
+                product_id=coca_cola.id,
+                movement_type="initial_stock",
+                quantity=50,
+                reference_type="seed_data",
+                reference_id=coca_cola.id,
+                created_by=user.id,
+            ),
+            InventoryMovement(
+                business_id=business.id,
+                store_id=store.id,
+                product_id=sabritas.id,
+                movement_type="initial_stock",
+                quantity=30,
+                reference_type="seed_data",
+                reference_id=sabritas.id,
+                created_by=user.id,
+            ),
+        ])
 
         await session.commit()
         print("Seed data applied successfully!")

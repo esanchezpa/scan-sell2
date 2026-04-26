@@ -53,6 +53,8 @@ export function NewSaleDialog({
   const openProductDialog = useStore((s) => s.openProductDialog);
   const setSaleDialogOpen = useStore((s) => s.setSaleDialogOpen);
   const productDialogOpen = useStore((s) => s.productDialog.open);
+  const queuedSaleProduct = useStore((s) => s.queuedSaleProduct);
+  const consumeQueuedSaleProduct = useStore((s) => s.consumeQueuedSaleProduct);
 
   const [query, setQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -143,21 +145,13 @@ export function NewSaleDialog({
   }, [addProductToCart, initialProduct, onInitialProductConsumed, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !queuedSaleProduct) return;
 
-    const handleProductSavedForSale = (event: Event) => {
-      const product = (event as CustomEvent<Product>).detail;
-      if (!product?.id) return;
-      addProductToCart(product);
-      setQuery("");
-      searchRef.current?.focus();
-    };
-
-    window.addEventListener("ventafacil:product-saved-for-sale", handleProductSavedForSale);
-    return () => {
-      window.removeEventListener("ventafacil:product-saved-for-sale", handleProductSavedForSale);
-    };
-  }, [addProductToCart, open]);
+    addProductToCart(queuedSaleProduct);
+    consumeQueuedSaleProduct();
+    setQuery("");
+    searchRef.current?.focus();
+  }, [addProductToCart, consumeQueuedSaleProduct, open, queuedSaleProduct]);
 
   useGlobalBarcodeListener({
     enabled: open && !scannerOpen && !productDialogOpen,
