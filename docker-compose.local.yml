@@ -38,10 +38,16 @@ services:
       OPENFOODFACTS_BASE_URL: https://world.openfoodfacts.org/api/v2
       OPENFOODFACTS_TIMEOUT: 5000
       IMAGES_DIR: /app/images
+      LOG_DIR: /app/logs
+      LOG_LEVEL: INFO
+      LOG_RETENTION_DAYS: 14
+      LOG_HTTP_ACCESS: "false"
+      DB_ECHO: "false"
     ports:
       - "8000:8000"
     volumes:
       - product_images:/app/images
+      - ./logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy

@@ -17,7 +17,7 @@ COPY alembic ./alembic
 COPY app ./app
 COPY scripts ./scripts
 
-RUN mkdir -p /app/images
+RUN mkdir -p /app/images /app/logs
 
 EXPOSE 8000
 

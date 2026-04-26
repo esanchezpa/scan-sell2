@@ -92,6 +92,8 @@ logs-ventafacil.bat
 
 Los datos quedan guardados en volumenes Docker. Detener la app no borra productos, ventas ni stock.
 
+Los logs tecnicos persistentes del backend se guardan en `logs/backend-YYYYMMDD-HH.log` y `logs/backend-errors-YYYYMMDD-HH.log`. Se particionan por hora y conservan 14 dias por defecto. Los logs SQL de SQLAlchemy y los access logs HTTP no se guardan en archivos persistentes por defecto para evitar crecimiento excesivo.
+
 La imagen Docker de base de datos esta alineada con PostgreSQL 18 (`postgres:18-alpine`). Si ya existia un volumen Docker creado con PostgreSQL 14, no se debe arrancar directamente con 18 sobre ese mismo volumen; hay que migrar con dump/restore o recrear el volumen si solo contenia datos demo.
 
 Nota tecnica: el contenedor frontend usa el servidor Vite en modo local (`npm run dev -- --host 0.0.0.0`) porque la salida actual de TanStack Start no expone un servidor `preview` standalone compatible con este empaquetado.

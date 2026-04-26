@@ -18,6 +18,7 @@ Raiz:
 - `vite.config.ts`, `tsconfig.json`, `components.json`: toolchain del frontend React.
 - `docker-compose.yml`: PostgreSQL 18 en host `5433` y Redis en `6379`.
 - `.env` / `.env.example`: configuracion backend y rutas de imagenes.
+- `logs/`: logs tecnicos persistentes del backend particionados por hora; los archivos runtime se ignoran en Git.
 - `backend/`: API FastAPI, modelos, schemas, servicios y migraciones.
 - `src/`: frontend React/TanStack activo.
 - `images/`: archivos servidos por backend en `/images`.
@@ -81,11 +82,13 @@ Ojo con puertos: `docker-compose.yml` expone PostgreSQL 18 como `127.0.0.1:5433`
 Backend:
 
 - `DATABASE_URL`
+- `DB_ECHO`
 - `REDIS_URL`
 - `APP_HOST`, `APP_PORT`, `APP_ENV`
 - `CORS_ORIGINS`
 - `OPENFOODFACTS_BASE_URL`, `OPENFOODFACTS_TIMEOUT`
 - `IMAGES_DIR`
+- `LOG_DIR`, `LOG_LEVEL`, `LOG_RETENTION_DAYS`, `LOG_HTTP_ACCESS`
 
 Frontend:
 

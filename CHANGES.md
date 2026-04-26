@@ -219,3 +219,19 @@ Se alinea la base de datos Docker con PostgreSQL 18 para coincidir con la instal
 
 ### Rama
 `main`
+
+---
+
+## Release 1.0.1: Logging tecnico persistente - 2026-04-26
+
+### Resumen
+Se agrega logging persistente y liviano para diagnostico local del backend sin guardar consultas SQL por defecto.
+
+### Cambios Realizados
+- **Backend:** Se configura logging asincrono con archivos particionados por hora en `logs/`.
+- **Base de datos:** `DB_ECHO=false` controla explicitamente los logs SQL de SQLAlchemy.
+- **Docker:** El backend monta `./logs` como `/app/logs` para conservar logs fuera del contenedor.
+- **Documentacion:** README, `claude.md`, `.env.example` y `logs/README.md` documentan politica de rotacion, retencion y diagnostico.
+
+### Rama
+`main`

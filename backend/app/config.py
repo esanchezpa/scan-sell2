@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+psycopg://user:password@localhost:5432/ventafacil_dev"
+    db_echo: bool = False
 
     # Redis (optional)
     redis_url: str = "redis://localhost:6379/0"
@@ -39,6 +40,12 @@ class Settings(BaseSettings):
 
     # Images
     images_dir: str = "images_prod"
+
+    # Logs
+    log_dir: str = "../logs"
+    log_level: str = "INFO"
+    log_retention_days: int = 14
+    log_http_access: bool = False
 
     # OpenFoodFacts
     openfoodfacts_base_url: str = "https://world.openfoodfacts.org/api/v2"

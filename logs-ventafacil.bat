@@ -10,4 +10,12 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo.
+echo Logs persistentes del backend:
+echo   %~dp0logs\backend-YYYYMMDD-HH.log
+echo   %~dp0logs\backend-errors-YYYYMMDD-HH.log
+echo.
+echo Mostrando logs de Docker en vivo...
+echo.
+
 docker compose -f docker-compose.local.yml logs -f --tail=120

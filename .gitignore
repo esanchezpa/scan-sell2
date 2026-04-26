@@ -74,6 +74,9 @@ dist/
 # --- Local agent/runtime artifacts ---
 .kilo/
 images/
+logs/*
+!logs/.gitkeep
+!logs/README.md
 graphify-out/.graphify_python
 graphify-out/cache/
 graphify-out/cost.json

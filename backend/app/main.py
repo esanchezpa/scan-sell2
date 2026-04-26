@@ -6,7 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.logging_config import configure_logging
 from app.routers import products, inventory, sales, app_settings, barcode
+
+configure_logging(settings)
 
 app = FastAPI(
     title="VentaFácil API",
