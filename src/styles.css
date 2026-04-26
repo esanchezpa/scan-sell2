@@ -98,6 +98,7 @@
 
 :root {
   --radius: 0.875rem;
+  --scale: 1;
 
   /* Mahaal-inspired blue on white */
   --background: oklch(0.99 0.005 240);
@@ -206,6 +207,7 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    font-size: calc(16px * var(--scale, 1));
   }
 
   h1, h2, h3, h4, h5, h6 {

@@ -27,7 +27,7 @@ class InventoryService:
         result = await session.execute(query)
         stock_balance = result.scalars().first()
 
-        net_quantity = movement_in.quantity if movement_in.movement_type == "in" else -movement_in.quantity
+        net_quantity = movement_in.quantity if movement_in.movement_type in ("purchase", "return", "initial_stock") else -movement_in.quantity
         if movement_in.movement_type == "adjustment":
             net_quantity = movement_in.quantity # the API should pass the difference or absolute? For now, diff
 

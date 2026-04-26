@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # External APIs
     openfoodfacts_base_url: str = "https://world.openfoodfacts.org/api/v2"
 
+    # Images
+    images_dir: str = "images_prod"
+
+    # OpenFoodFacts
+    openfoodfacts_base_url: str = "https://world.openfoodfacts.org/api/v2"
+    openfoodfacts_timeout: int = 5000
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]

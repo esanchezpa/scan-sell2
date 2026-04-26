@@ -64,7 +64,7 @@ class SalesService:
                     business_id=sale_in.business_id,
                     store_id=sale_in.store_id,
                     product_id=item_in.product_id,
-                    movement_type="out",
+                    movement_type="sale",
                     quantity=item_in.quantity,
                     reference_type="sale",
                     reference_id=db_sale.id,
@@ -82,6 +82,26 @@ class SalesService:
 
         # 4. Commit atomic transaction
         await session.commit()
-        await session.refresh(db_sale)
+
+        # 5. Reload with relationships
+        from sqlalchemy.orm import selectinload
+        reloaded = await session.execute(
+            select(Sale)
+            .where(Sale.id == db_sale.id)
+            .options(selectinload(Sale.items), selectinload(Sale.payments))
+        )
+        db_sale = reloaded.scalars().first()
 
         return db_sale
+
+    @staticmethod
+    async def get_sales_history(session: AsyncSession, business_id: int) -> List[Sale]:
+        from sqlalchemy.orm import selectinload
+        query = (
+            select(Sale)
+            .where(Sale.business_id == business_id)
+            .options(selectinload(Sale.items), selectinload(Sale.payments))
+            .order_by(Sale.created_at.desc())
+        )
+        result = await session.execute(query)
+        return list(result.scalars().all())

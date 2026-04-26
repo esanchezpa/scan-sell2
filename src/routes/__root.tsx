@@ -1,5 +1,9 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { useEffect } from "react";
+import { useStore } from "@/lib/store";
+import { ProductDialog } from "@/components/ProductDialog";
+import { useGlobalBarcodeListener } from "@/hooks/useGlobalBarcode";
 
 import appCss from "../styles.css?url";
 
@@ -73,10 +77,53 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  const initialize = useStore((s) => s.initialize);
+  const openProductDialog = useStore((s) => s.openProductDialog);
+  const closeProductDialog = useStore((s) => s.closeProductDialog);
+  const productDialog = useStore((s) => s.productDialog);
+  const accessibilityScale = useStore((s) => s.accessibilityScale);
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--scale", String(accessibilityScale));
+  }, [accessibilityScale]);
+
+  useGlobalBarcodeListener({
+    onProductFound: (product: any) => {
+      openProductDialog({
+        id: product.id.toString(),
+        name: product.name,
+        barcode: product.barcodes?.[0]?.barcode || product.barcode,
+        category: product.category_name || "Otros",
+        price: product.price,
+        cost: product.cost,
+        stock: product.stock_quantity || 0,
+        lowStockAlert: product.low_stock_threshold,
+        imageUrl: product.image_url,
+      });
+    },
+    onProductNotFound: (barcode: string) => {
+      openProductDialog(undefined, barcode);
+    },
+  });
+
+  const handleProductDialogClose = () => {
+    closeProductDialog();
+  };
+
   return (
     <>
       <Outlet />
       <Toaster position="bottom-center" richColors />
+      <ProductDialog
+        open={productDialog.open}
+        onClose={handleProductDialogClose}
+        initial={productDialog.initial}
+        barcode={productDialog.barcode}
+      />
     </>
   );
 }

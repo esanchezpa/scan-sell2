@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.config import settings
-from app.models.core import Business, Store, User, AppSetting
+from app.models.core import Business, Store, User
 from app.models.product import Category, Product, ProductBarcode
 from app.models.inventory import StockBalance
 from app.models.sales import Sale
@@ -55,10 +55,6 @@ async def seed_data():
         stock1 = StockBalance(store_id=store.id, product_id=coca_cola.id, stock=50)
         stock2 = StockBalance(store_id=store.id, product_id=sabritas.id, stock=30)
         session.add_all([stock1, stock2])
-
-        print("Adding default settings...")
-        setting = AppSetting(business_id=business.id, setting_key="display_mode", setting_value="auto")
-        session.add(setting)
 
         await session.commit()
         print("Seed data applied successfully!")

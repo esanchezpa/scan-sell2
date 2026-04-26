@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { api, BUSINESS_ID, STORE_ID, type ReactivateProductPayload } from "./api";
 
 export type ProductCategory =
   | "Bebidas"
@@ -11,8 +12,11 @@ export type ProductCategory =
 
 export interface Product {
   id: string;
+  product_id?: number | string;
   name: string;
+  description?: string | null;
   barcode?: string;
+  categoryId?: number | null;
   category: ProductCategory;
   price: number;
   cost: number;
@@ -70,16 +74,26 @@ interface StoreState {
   customers: Customer[];
   suppliers: Supplier[];
   invoices: Invoice[];
+  isLoading: boolean;
+  error: string | null;
 
+  accessibilityScale: number;
+  productDialog: { open: boolean; initial?: Product; barcode?: string };
+
+  initialize: () => Promise<void>;
   setVendorName: (name: string) => void;
   setStoreName: (name: string) => void;
+  setAccessibilityScale: (scale: number) => void;
+  openProductDialog: (initial?: Product, barcode?: string) => void;
+  closeProductDialog: () => void;
 
-  addProduct: (p: Omit<Product, "id">) => Product;
-  updateProduct: (id: string, p: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (p: Omit<Product, "id">) => Promise<Product>;
+  updateProduct: (id: string, p: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  reactivateProduct: (id: string, payload?: Partial<ReactivateProductPayload>) => Promise<Product>;
   findByBarcode: (code: string) => Product | undefined;
 
-  addSale: (s: Omit<Sale, "id" | "date">) => Sale;
+  addSale: (s: Omit<Sale, "id" | "date">) => Promise<Sale>;
   deleteSale: (id: string) => void;
 
   addCustomer: (c: Omit<Customer, "id">) => Customer;
@@ -93,71 +107,154 @@ interface StoreState {
   deleteInvoice: (id: string) => void;
 }
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-const seedProducts: Product[] = [
-  { id: "p1", name: "Coca-Cola 500ml", barcode: "7501055363057", category: "Bebidas", price: 3.5, cost: 2.2, stock: 24, lowStockAlert: 6 },
-  { id: "p2", name: "Inca Kola 500ml", barcode: "7751271001234", category: "Bebidas", price: 3.5, cost: 2.1, stock: 4, lowStockAlert: 6 },
-  { id: "p3", name: "Papas Lays Clásicas", barcode: "7702049001234", category: "Snacks", price: 2.5, cost: 1.4, stock: 12, lowStockAlert: 5 },
-  { id: "p4", name: "Galletas Oreo", barcode: "7622300441234", category: "Snacks", price: 1.8, cost: 0.9, stock: 0, lowStockAlert: 4 },
-  { id: "p5", name: "Arroz Costeño 1kg", barcode: "7751158001234", category: "Abarrotes", price: 5.9, cost: 4.2, stock: 18, lowStockAlert: 5 },
-  { id: "p6", name: "Detergente Ariel 250g", barcode: "7501006501234", category: "Limpieza", price: 8.5, cost: 6.0, stock: 9, lowStockAlert: 3 },
-  { id: "p7", name: "Shampoo Head & Shoulders", barcode: "7500435001234", category: "Cuidado Personal", price: 18.9, cost: 12.5, stock: 7, lowStockAlert: 3 },
-  { id: "p8", name: "Pan Bimbo Integral", category: "Abarrotes", price: 6.5, cost: 4.5, stock: 2, lowStockAlert: 4 },
-];
-
-const seedCustomers: Customer[] = [
-  { id: "c1", name: "María Quispe", phone: "987654321", credit: 0 },
-  { id: "c2", name: "Carlos Mendoza", phone: "956123789", credit: 45.5 },
-];
-
-const seedSuppliers: Supplier[] = [
-  { id: "s1", name: "Distribuidora Lima SAC", contact: "Juan Pérez", phone: "014567890" },
-  { id: "s2", name: "Backus Distribución", contact: "Ana Torres", phone: "012345678" },
-];
+// Map backend category to frontend enum if needed, or just cast
+const mapProduct = (p: any): Product => ({
+  id: p.id.toString(),
+  product_id: p.product_id ?? p.id,
+  name: p.name,
+  description: p.description,
+  barcode: p.barcodes?.[0]?.barcode || p.barcode,
+  categoryId: p.category_id,
+  category: p.category_name || "Otros",
+  price: p.price,
+  cost: p.cost,
+  stock: p.stock_quantity || 0,
+  lowStockAlert: p.low_stock_threshold,
+  imageUrl: p.image_url
+});
 
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       storeName: "Mi Tienda",
       vendorName: "Vendedor",
-      products: seedProducts,
+      products: [],
       sales: [],
-      customers: seedCustomers,
-      suppliers: seedSuppliers,
+      customers: [],
+      suppliers: [],
       invoices: [],
+      isLoading: false,
+      error: null,
+
+      accessibilityScale: 1,
+      productDialog: { open: false },
+
+      initialize: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const [products, sales] = await Promise.all([
+            api.products.list(),
+            api.sales.getHistory(),
+          ]);
+          set({
+            products: products.map(mapProduct),
+            sales: sales.map((s: any) => ({
+              id: s.id.toString(),
+              date: s.created_at,
+              items: s.items.map((i: any) => ({
+                productId: i.product_id?.toString() || "",
+                name: i.product_name_at_sale,
+                price: i.price_at_sale,
+                quantity: i.quantity,
+              })),
+              total: s.total_amount,
+              paymentMethod: s.payments[0]?.payment_method === "cash" ? "Efectivo" : "Tarjeta",
+              status: s.status === "completed" ? "Completada" : "Pendiente"
+            })),
+            isLoading: false
+          });
+        } catch (err) {
+          set({ error: (err as Error).message, isLoading: false });
+        }
+      },
 
       setVendorName: (name) => set({ vendorName: name }),
       setStoreName: (name) => set({ storeName: name }),
-
-      addProduct: (p) => {
-        const product = { ...p, id: uid() };
-        set((s) => ({ products: [product, ...s.products] }));
-        return product;
+      setAccessibilityScale: (scale) => {
+        document.documentElement.style.setProperty("--scale", String(scale));
+        set({ accessibilityScale: scale });
       },
-      updateProduct: (id, patch) =>
+      openProductDialog: (initial, barcode) => set({ productDialog: { open: true, initial, barcode } }),
+      closeProductDialog: () => set({ productDialog: { open: false } }),
+
+      addProduct: async (p) => {
+        const product = await api.products.create({
+          ...p,
+          business_id: BUSINESS_ID,
+          low_stock_threshold: p.lowStockAlert,
+          image_url: p.imageUrl
+        });
+        const mapped = mapProduct(product);
+        set((s) => ({ products: [mapped, ...s.products] }));
+        return mapped;
+      },
+      updateProduct: async (id, patch) => {
+        const updated = await api.products.update(id, {
+          ...patch,
+          low_stock_threshold: patch.lowStockAlert,
+          image_url: patch.imageUrl
+        });
+        const mapped = mapProduct(updated);
         set((s) => ({
-          products: s.products.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-        })),
-      deleteProduct: (id) =>
-        set((s) => ({ products: s.products.filter((p) => p.id !== id) })),
+          products: s.products.map((p) => (p.id === id ? mapped : p)),
+        }));
+      },
+      deleteProduct: async (id) => {
+        await api.products.delete(id);
+        set((s) => ({ products: s.products.filter((p) => p.id !== id) }));
+      },
+      reactivateProduct: async (id, payload = {}) => {
+        const reactivated = await api.products.reactivate(id, {
+          business_id: BUSINESS_ID,
+          store_id: STORE_ID,
+          ...payload,
+        });
+        const mapped = mapProduct(reactivated);
+        const existing = get().products.find((p) => p.id === mapped.id);
+        if (existing) {
+          set((s) => ({ products: s.products.map((p) => (p.id === mapped.id ? mapped : p)) }));
+        } else {
+          set((s) => ({ products: [mapped, ...s.products] }));
+        }
+        return mapped;
+      },
       findByBarcode: (code) => get().products.find((p) => p.barcode === code),
 
-      addSale: (s) => {
-        const sale: Sale = { ...s, id: uid(), date: new Date().toISOString() };
-        set((state) => {
-          const products = state.products.map((p) => {
-            const item = s.items.find((i) => i.productId === p.id);
-            return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
-          });
-          return { sales: [sale, ...state.sales], products };
-        });
-        return sale;
+      addSale: async (s) => {
+        const saleData = {
+          business_id: BUSINESS_ID,
+          store_id: STORE_ID,
+          items: s.items.map(item => ({
+            product_id: parseInt(item.productId),
+            product_name_at_sale: item.name,
+            quantity: item.quantity,
+            price_at_sale: item.price,
+            cost_at_sale: get().products.find(p => p.id === item.productId)?.cost || 0,
+          })),
+          payments: [{
+            payment_method: s.paymentMethod === "Efectivo" ? "cash" : "card",
+            amount: s.total
+          }]
+        };
+        const result = await api.sales.create(saleData);
+        const newSale: Sale = {
+          id: result.id.toString(),
+          date: result.created_at,
+          items: s.items,
+          total: result.total_amount,
+          paymentMethod: s.paymentMethod,
+          status: "Completada"
+        };
+        set((state) => ({
+          sales: [newSale, ...state.sales]
+        }));
+        await get().initialize(); // Sync with backend to get correct stock
+        return newSale;
       },
       deleteSale: (id) => set((s) => ({ sales: s.sales.filter((x) => x.id !== id) })),
 
       addCustomer: (c) => {
-        const customer = { ...c, id: uid() };
+        const customer = { ...c, id: Math.random().toString(36).slice(2, 10) };
         set((s) => ({ customers: [customer, ...s.customers] }));
         return customer;
       },
@@ -169,7 +266,7 @@ export const useStore = create<StoreState>()(
         set((s) => ({ customers: s.customers.filter((c) => c.id !== id) })),
 
       addSupplier: (s) => {
-        const supplier = { ...s, id: uid() };
+        const supplier = { ...s, id: Math.random().toString(36).slice(2, 10) };
         set((state) => ({ suppliers: [supplier, ...state.suppliers] }));
         return supplier;
       },
@@ -177,7 +274,7 @@ export const useStore = create<StoreState>()(
         set((s) => ({ suppliers: s.suppliers.filter((x) => x.id !== id) })),
 
       addInvoice: (i) => {
-        const invoice = { ...i, id: uid() };
+        const invoice = { ...i, id: Math.random().toString(36).slice(2, 10) };
         set((s) => ({ invoices: [invoice, ...s.invoices] }));
         return invoice;
       },

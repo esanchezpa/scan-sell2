@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useStore, formatPEN, type Product } from "@/lib/store";
+import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ScanBarcode, Plus, Pencil, Trash2 } from "lucide-react";
-import { ProductDialog } from "@/components/ProductDialog";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { toast } from "sonner";
 
@@ -23,10 +23,9 @@ function CatalogPage() {
   const products = useStore((s) => s.products);
   const findByBarcode = useStore((s) => s.findByBarcode);
   const deleteProduct = useStore((s) => s.deleteProduct);
+  const openProductDialog = useStore((s) => s.openProductDialog);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [editing, setEditing] = useState<Product | undefined>();
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -37,13 +36,38 @@ function CatalogPage() {
   }, [products, query]);
 
   const onAdd = () => {
-    setEditing(undefined);
-    setOpen(true);
+    openProductDialog(undefined, undefined);
   };
 
   const onEdit = (p: Product) => {
-    setEditing(p);
-    setOpen(true);
+    openProductDialog(p, undefined);
+  };
+
+  const handleCatalogScan = async (code: string) => {
+    const found = findByBarcode(code);
+    if (found) {
+      onEdit(found);
+      toast.success(`Producto encontrado: ${found.name}`);
+      setScannerOpen(false);
+      return;
+    }
+
+    try {
+      const result = await api.barcode.lookup(code);
+      if (result.source === "internal" && result.status === "inactive") {
+        const productName = result.name || "este producto";
+        if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
+          openProductDialog(undefined, code);
+        }
+        setScannerOpen(false);
+        return;
+      }
+    } catch {
+      // Fall through and let ProductDialog handle new-product lookup.
+    }
+
+    openProductDialog(undefined, code);
+    setScannerOpen(false);
   };
 
   return (
@@ -91,7 +115,7 @@ function CatalogPage() {
               >
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary-soft font-display text-2xl font-bold text-primary-soft-foreground">
                   {p.imageUrl ? (
-                    <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
+                    <img src={api.getImageUrl(p.imageUrl) ?? p.imageUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
                     p.name[0].toUpperCase()
                   )}
@@ -146,36 +170,14 @@ function CatalogPage() {
         aria-label="Añadir producto"
         className="fixed bottom-24 right-5 z-30 flex h-14 items-center gap-2 rounded-full bg-gradient-primary px-5 text-primary-foreground shadow-glow transition-transform hover:scale-105 sm:right-[calc(50%-18rem)]"
       >
-        <Plus className="h-6 w-6" strokeWidth={2.5} />
+        <Plus className="h-6 w-6" />
         <span className="pr-1 font-semibold">Añadir producto</span>
       </button>
 
-      <ProductDialog open={open} onClose={() => setOpen(false)} initial={editing} />
       <BarcodeScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onDetected={(code) => {
-          const found = findByBarcode(code);
-          if (found) {
-            onEdit(found);
-            toast.success(`Producto encontrado: ${found.name}`);
-          } else {
-            toast.message("Código no registrado", {
-              description: "Se abrirá el formulario para crearlo.",
-            });
-            setEditing({
-              id: "",
-              name: "",
-              barcode: code,
-              category: "Otros",
-              price: 0,
-              cost: 0,
-              stock: 0,
-              lowStockAlert: 5,
-            } as Product);
-            setOpen(true);
-          }
-        }}
+        onDetected={handleCatalogScan}
       />
     </AppShell>
   );

@@ -150,3 +150,25 @@ Se resolvieron problemas de privilegios de esquema en PostgreSQL 15+, asegurando
 `ANTIGRAVITY-FEATS-7-backend-fixes`
 
 ---
+---
+
+## Fase 8: Retorno a React e Integración con Backend - 2026-04-26 05:50 UTC-7
+
+### Resumen
+Se decidió abandonar el desarrollo en Flutter para mantener la fidelidad al diseño visual original basado en React. Se restauró el frontend de React y se integró completamente con el backend FastAPI y la base de datos PostgreSQL.
+
+### Cambios Realizados
+- **Frontend (React):**
+  - Se eliminó el directorio `frontend/` (Flutter).
+  - Se restauró la estructura original en `src/`.
+  - Se implementó `src/lib/api.ts` como cliente centralizado de API.
+  - Se actualizó el store de Zustand (`src/lib/store.ts`) para realizar persistencia asíncrona en el backend en lugar de solo local.
+  - Se integró el escáner de códigos de barras HID en la interfaz de React.
+- **Backend (FastAPI):**
+  - Se expandieron los modelos de `Product` y `Sale` para soportar las necesidades del frontend.
+  - Se añadieron endpoints para historial de ventas (`/api/v1/sales/history`) y consulta avanzada de códigos de barras.
+  - Se configuró CORS de forma permisiva para facilitar el desarrollo local entre distintos puertos.
+- **Configuración:** Actualización de `.env` y sincronización de IDs de negocio (`business_id=1`).
+
+### Rama
+`ANTIGRAVITY-FEATS-8-react-revert`

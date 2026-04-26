@@ -114,65 +114,68 @@ function HomePage() {
         </Button>
       </section>
 
-      {/* KPI mini cards */}
+      {/* KPI mini cards + Sales by category - 2 column layout */}
       <section className="mx-5 mb-3 grid grid-cols-2 gap-3">
-        <Card label="Rentabilidad" value={formatPEN(profit)} icon={<Star className="h-4 w-4" />} />
-        <Card label="Por cobrar" value={formatPEN(totalCredit)} icon={<TrendingUp className="h-4 w-4" />} />
-      </section>
+        {/* Left column: stacked cards */}
+        <div className="flex flex-col gap-3">
+          <Card label="Rentabilidad" value={formatPEN(profit)} icon={<Star className="h-4 w-4" />} />
+          <Card label="Por cobrar" value={formatPEN(totalCredit)} icon={<TrendingUp className="h-4 w-4" />} />
+        </div>
 
-      {/* Sales by category */}
-      <section className="mx-5 mb-3 rounded-3xl bg-card p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-primary">Ventas por tipo</h2>
-        <p className="text-xs text-muted-foreground">Distribución por categoría</p>
-        <div className="mt-3 h-48">
-          {byCategory.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Sin datos para mostrar.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={byCategory}
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                  nameKey="name"
+        {/* Right column: Sales by category */}
+        <div className="rounded-3xl bg-card p-4 shadow-card">
+          <h2 className="font-display text-base font-bold text-primary">Ventas por tipo</h2>
+          <p className="text-xs text-muted-foreground">Por categoría</p>
+          <div className="mt-2 h-36">
+            {byCategory.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                Sin datos.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={byCategory}
+                    innerRadius={35}
+                    outerRadius={55}
+                    paddingAngle={3}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {byCategory.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                    }}
+                    formatter={(v) => formatPEN(Number(v))}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          {byCategory.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {byCategory.map((c, i) => (
+                <span
+                  key={c.name}
+                  className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium"
                 >
-                  {byCategory.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                  formatter={(v) => formatPEN(Number(v))}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
+                  />
+                  {c.name}
+                </span>
+              ))}
+            </div>
           )}
         </div>
-        {byCategory.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {byCategory.map((c, i) => (
-              <span
-                key={c.name}
-                className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium"
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
-                />
-                {c.name}
-              </span>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Top products */}

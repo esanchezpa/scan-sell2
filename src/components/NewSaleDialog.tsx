@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useStore, formatPEN, type SaleItem } from "@/lib/store";
+import { useStore, formatPEN, type SaleItem, type Product } from "@/lib/store";
+import { api } from "@/lib/api";
 import { Search, ScanBarcode, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
   const findByBarcode = useStore((s) => s.findByBarcode);
   const customers = useStore((s) => s.customers);
   const addSale = useStore((s) => s.addSale);
+  const openProductDialog = useStore((s) => s.openProductDialog);
 
   const [query, setQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -37,6 +39,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
     "Efectivo"
   );
   const [customerId, setCustomerId] = useState<string>("none");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -55,14 +58,10 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
   const addItem = (productId: string) => {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
-    if (p.stock <= 0) {
-      toast.error(`${p.name} sin stock`);
-      return;
-    }
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === productId);
       if (existing) {
-        if (existing.quantity >= p.stock) {
+        if (p.stock > 0 && existing.quantity >= p.stock) {
           toast.error(`Solo quedan ${p.stock} unidades`);
           return prev;
         }
@@ -81,7 +80,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
       setItems((prev) => prev.filter((i) => i.productId !== productId));
       return;
     }
-    if (qty > p.stock) {
+    if (p.stock > 0 && qty > p.stock) {
       toast.error(`Solo quedan ${p.stock} unidades`);
       return;
     }
@@ -90,19 +89,101 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
     );
   };
 
-  const onScanned = (code: string) => {
-    const p = findByBarcode(code);
-    if (p) {
-      addItem(p.id);
-      toast.success(`Agregado: ${p.name}`);
-    } else {
-      toast.error("Producto no encontrado");
+  const addProductToCart = (p: Product) => {
+    setItems((prev) => {
+      const existing = prev.find((i) => i.productId === p.id);
+      if (existing) {
+        if (p.stock > 0 && existing.quantity >= p.stock) {
+          toast.error(`Solo quedan ${p.stock} unidades`);
+          return prev;
+        }
+        return prev.map((i) =>
+          i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [...prev, { productId: p.id, name: p.name, price: p.price, quantity: 1 }];
+    });
+  };
+
+  const lookupBarcode = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed || trimmed.length < 8) return;
+
+    const cached = findByBarcode(trimmed);
+    if (cached) {
+      addItem(cached.id);
+      toast.success(`Agregado: ${cached.name}`);
+      setQuery("");
+      return;
+    }
+
+    try {
+      const result = await api.barcode.lookup(trimmed);
+
+      if (result.source === "internal") {
+        if (result.status === "inactive") {
+          const productName = result.name || "este producto";
+          if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
+            openProductDialog(undefined, trimmed);
+          }
+          setQuery("");
+          return;
+        }
+        const product = await api.products.getByBarcode(trimmed) as any;
+        if (product && product.id) {
+          const mapped: Product = {
+            id: product.id.toString(),
+            name: product.name,
+            barcode: product.barcodes?.[0]?.barcode || product.barcode,
+            category: product.category_name || "Otros",
+            price: product.price,
+            cost: product.cost,
+            stock: product.stock_quantity || 0,
+            lowStockAlert: product.low_stock_threshold,
+            imageUrl: product.image_url,
+          };
+          addProductToCart(mapped);
+          toast.success(`Agregado: ${mapped.name}`);
+          setQuery("");
+          return;
+        }
+        toast.error("Producto no disponible");
+        setQuery("");
+        return;
+      }
+
+      if (result.found) {
+        if (confirm(`Código "${trimmed}" encontrado en base de datos externa (${result.source}). ¿Desea agregarlo como nuevo producto?`)) {
+          openProductDialog(undefined, trimmed);
+        }
+        setQuery("");
+        return;
+      }
+    } catch {
+      // not found in backend
+    }
+
+    if (confirm(`Código "${trimmed}" no encontrado. ¿Desea agregarlo como nuevo producto?`)) {
+      openProductDialog(undefined, trimmed);
     }
   };
 
-  const complete = () => {
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      lookupBarcode(query);
+    }
+  };
+
+  const handleScannerDetected = (code: string) => {
+    setQuery(code);
+    setTimeout(() => lookupBarcode(code), 50);
+    setScannerOpen(false);
+  };
+
+  const complete = async () => {
     if (!items.length) return;
-    const sale = addSale({
+    const sale = await addSale({
       items,
       total,
       paymentMethod: payment,
@@ -125,7 +206,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
               Nueva venta
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Busca o escanea productos para agregarlos al carrito.
+              Escanea o busca productos para agregarlos al carrito.
             </p>
           </DialogHeader>
 
@@ -136,10 +217,12 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
                 <div className="relative flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    ref={searchRef}
                     autoFocus
-                    placeholder="Buscar producto..."
+                    placeholder="Buscar o escanear producto... (Enter)"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
                     className="pl-9"
                   />
                 </div>
@@ -147,7 +230,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
                   variant="secondary"
                   size="icon"
                   onClick={() => setScannerOpen(true)}
-                  aria-label="Escanear"
+                  aria-label="Abrir escáner"
                 >
                   <ScanBarcode className="h-5 w-5" />
                 </Button>
@@ -158,28 +241,36 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
                     Sin resultados.
                   </p>
                 )}
-                {filtered.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addItem(p.id)}
-                    disabled={p.stock <= 0}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-transparent bg-card p-3 text-left transition-colors hover:border-primary/30 hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft font-display text-lg font-bold text-primary-soft-foreground">
-                      {p.imageUrl ? (
-                        <img src={p.imageUrl} alt="" className="h-full w-full rounded-xl object-cover" />
-                      ) : (
-                        p.name[0]
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate font-semibold">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatPEN(p.price)} · stock: {p.stock}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                {filtered.map((p) => {
+                  const inCart = items.some((i) => i.productId === p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => addItem(p.id)}
+                      className={`flex w-full items-center gap-3 rounded-2xl border border-transparent bg-card p-3 text-left transition-colors hover:border-primary/30 hover:bg-primary-soft ${
+                        inCart ? "border-primary/40 bg-primary-soft/50" : ""
+                      }`}
+                    >
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft font-display text-lg font-bold text-primary-soft-foreground">
+                        {p.imageUrl ? (
+                          <img
+                            src={api.getImageUrl(p.imageUrl) ?? p.imageUrl}
+                            alt=""
+                            className="h-full w-full rounded-xl object-cover"
+                          />
+                        ) : (
+                          p.name[0]
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate font-semibold">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatPEN(p.price)} · stock: {p.stock}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -203,7 +294,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
                   items.map((it) => {
                     const p = products.find((x) => x.id === it.productId);
                     const stock = p?.stock ?? 0;
-                    const maxed = it.quantity >= stock;
+                    const maxed = stock > 0 && it.quantity >= stock;
                     return (
                       <div
                         key={it.productId}
@@ -297,7 +388,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
       <BarcodeScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onDetected={onScanned}
+        onDetected={handleScannerDetected}
       />
     </>
   );

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 
 from app.database import get_db
 from app.schemas.sales import SaleCreate, SaleResponse
@@ -11,11 +12,11 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(get_db)):
     try:
         sale = await SalesService.create_sale(db, sale_in)
-        # Assuming eager loading for items and payments isn't configured for flush, 
-        # we might need to manually return a structure or let Pydantic handle it if lazy load is ok.
-        # Since it's async, lazy load might throw DetachedInstanceError.
-        # In a real app we would query the full sale graph back. 
-        # Here we just return the sale object (items/payments might be empty if not re-queried).
         return sale
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
+@router.get("/history", response_model=List[SaleResponse])
+async def get_history(business_id: int = 1, db: AsyncSession = Depends(get_db)):
+    return await SalesService.get_sales_history(db, business_id)

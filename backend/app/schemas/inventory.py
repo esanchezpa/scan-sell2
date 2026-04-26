@@ -15,7 +15,7 @@ class StockBalanceResponse(BaseModel):
 
 # --- Inventory Movements ---
 class InventoryMovementBase(BaseModel):
-    movement_type: str # 'in', 'out', 'adjustment'
+    movement_type: str # 'purchase', 'sale', 'return', 'adjustment', 'initial_stock'
     quantity: int
     reference_type: Optional[str] = None
     reference_id: Optional[int] = None
