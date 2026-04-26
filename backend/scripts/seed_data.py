@@ -13,6 +13,10 @@ from app.models.product import Category, Product, ProductBarcode
 from app.models.inventory import InventoryMovement, StockBalance
 
 async def seed_data():
+    if os.getenv("SEED_DEMO_DATA", "true").lower() in {"0", "false", "no", "off"}:
+        print("Seed data skipped: SEED_DEMO_DATA is disabled.")
+        return
+
     engine = create_async_engine(settings.database_url, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 

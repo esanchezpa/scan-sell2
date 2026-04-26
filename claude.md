@@ -17,6 +17,8 @@ Raiz:
 - `package.json`: scripts reales del frontend (`dev`, `build`, `lint`, `format`).
 - `vite.config.ts`, `tsconfig.json`, `components.json`: toolchain del frontend React.
 - `docker-compose.yml`: PostgreSQL 18 en host `5433` y Redis en `6379`.
+- `docker-compose.local.yml`: stack completo local con Postgres, Redis, backend y frontend; usa seed demo.
+- `docker-compose.neon.yml`: stack para usar Neon como base remota; no levanta Postgres local y desactiva seed demo.
 - `.env` / `.env.example`: configuracion backend y rutas de imagenes.
 - `logs/`: logs tecnicos persistentes del backend particionados por hora; los archivos runtime se ignoran en Git.
 - `backend/`: API FastAPI, modelos, schemas, servicios y migraciones.
@@ -76,6 +78,8 @@ docker compose up -d postgres redis
 ```
 
 Ojo con puertos: `docker-compose.yml` expone PostgreSQL 18 como `127.0.0.1:5433`, pero entornos locales pueden tener `.env` apuntando a `5432`. Si existe un volumen Docker antiguo creado con PostgreSQL 14, migrar con dump/restore o recrearlo si solo tenia datos demo.
+
+Para despliegue local contra Neon usar `docker-compose.neon.yml`, `SEED_DEMO_DATA=false`, `DATABASE_URL` con host pooled y `DIRECT_DATABASE_URL` con host directo para Alembic. Las URLs Neon deben usar prefijo `postgresql+psycopg://` en este backend.
 
 ## Variables importantes
 

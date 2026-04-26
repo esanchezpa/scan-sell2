@@ -11,7 +11,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Iniciando VentaFacil POS 1.0.0...
+echo Iniciando VentaFacil POS 1.0.2 con base de datos local Docker...
 docker compose -f docker-compose.local.yml up --build -d
 if errorlevel 1 (
   echo No se pudo iniciar VentaFacil.

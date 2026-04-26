@@ -43,6 +43,7 @@ services:
       LOG_RETENTION_DAYS: 14
       LOG_HTTP_ACCESS: "false"
       DB_ECHO: "false"
+      SEED_DEMO_DATA: "true"
     ports:
       - "8000:8000"
     volumes:

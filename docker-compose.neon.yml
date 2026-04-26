@@ -1,0 +1,61 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-}
+      REDIS_URL: redis://redis:6379/0
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      APP_ENV: neon
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000}
+      OPENFOODFACTS_BASE_URL: ${OPENFOODFACTS_BASE_URL:-https://world.openfoodfacts.org/api/v2}
+      OPENFOODFACTS_TIMEOUT: ${OPENFOODFACTS_TIMEOUT:-5000}
+      IMAGES_DIR: /app/images
+      LOG_DIR: /app/logs
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-14}
+      LOG_HTTP_ACCESS: ${LOG_HTTP_ACCESS:-false}
+      DB_ECHO: ${DB_ECHO:-false}
+      SEED_DEMO_DATA: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - product_images:/app/images
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_BUSINESS_ID: ${VITE_BUSINESS_ID:-6}
+        VITE_STORE_ID: ${VITE_STORE_ID:-6}
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+  product_images:

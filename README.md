@@ -49,16 +49,18 @@ scan-sell2/
 |   |-- lib/store.ts         # estado global Zustand y mappers
 |-- graphify-out/            # grafo de arquitectura generado
 |-- docs_init/               # documentos historicos de planificacion
-|-- docker-compose.yml       # postgres y redis locales
+|-- docker-compose.yml       # postgres y redis locales basicos
+|-- docker-compose.local.yml # stack completo local: postgres, redis, backend, frontend
+|-- docker-compose.neon.yml  # stack app/backend contra base Neon
 |-- package.json             # scripts frontend
 |-- README.md
 ```
 
 ## Inicio rapido
 
-### Opcion recomendada para usuario final local
+### Opcion A: Docker con base de datos local
 
-En Windows, la forma mas simple de ejecutar VentaFacil POS 1.0.2 en otra maquina es con Docker Desktop.
+Usa esta opcion si quieres que todo viva en la maquina local: PostgreSQL 18, Redis, backend, frontend, imagenes y logs.
 
 Requisitos:
 
@@ -72,7 +74,7 @@ Uso:
 start-ventafacil.bat
 ```
 
-Esto levanta PostgreSQL, Redis, backend y frontend con Docker Compose, aplica migraciones, crea datos demo si la base esta vacia y abre:
+Esto levanta `docker-compose.local.yml`, aplica migraciones, crea datos demo si la base local esta vacia y abre:
 
 ```text
 http://localhost:5173
@@ -91,6 +93,56 @@ logs-ventafacil.bat
 ```
 
 Los datos quedan guardados en volumenes Docker. Detener la app no borra productos, ventas ni stock.
+
+### Opcion B: Docker usando base de datos Neon
+
+Usa esta opcion para una maquina nueva que debe conectarse a la base real en Neon. En este modo Docker no levanta PostgreSQL local; solo levanta Redis, backend y frontend. El seed demo queda desactivado.
+
+Requisitos:
+
+- Docker Desktop instalado y abierto.
+- Puertos libres: `5173`, `8000`, `6379`.
+- Un archivo `.env` con las URLs de Neon y los IDs del negocio/tienda correctos.
+
+Configura `.env`:
+
+```bash
+copy .env.example .env
+```
+
+Valores importantes para Neon:
+
+```env
+# URL pooled de Neon para la app. Cambia postgresql:// por postgresql+psycopg://
+DATABASE_URL=postgresql+psycopg://usuario:password@host-pooler.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+
+# URL directa de Neon para migraciones Alembic. Si no la tienes, dejala vacia.
+DIRECT_DATABASE_URL=postgresql+psycopg://usuario:password@host.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+
+SEED_DEMO_DATA=false
+VITE_BUSINESS_ID=6
+VITE_STORE_ID=6
+```
+
+Uso:
+
+```text
+start-ventafacil-neon.bat
+```
+
+Para detener:
+
+```text
+stop-ventafacil-neon.bat
+```
+
+Para ver logs:
+
+```text
+logs-ventafacil-neon.bat
+```
+
+La base de datos permanece en Neon. Los contenedores solo guardan localmente imagenes subidas y logs tecnicos.
 
 Los logs tecnicos persistentes del backend se guardan en `logs/backend-YYYYMMDD-HH.log` y `logs/backend-errors-YYYYMMDD-HH.log`. Se particionan por hora y conservan 14 dias por defecto. Los logs SQL de SQLAlchemy y los access logs HTTP no se guardan en archivos persistentes por defecto para evitar crecimiento excesivo.
 
@@ -156,7 +208,7 @@ npm run build
 
 ## Variables clave
 
-Backend:
+Backend local con PostgreSQL Docker:
 
 ```env
 DATABASE_URL=postgresql+psycopg://ventafacil_user:123@127.0.0.1:5433/ventafacil_dev
@@ -168,16 +220,28 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000
 OPENFOODFACTS_BASE_URL=https://world.openfoodfacts.org/api/v2
 OPENFOODFACTS_TIMEOUT=5000
 IMAGES_DIR=C:\ruta\absoluta\a\scan-sell2\images
+SEED_DEMO_DATA=true
+VITE_BUSINESS_ID=1
+VITE_STORE_ID=1
 ```
 
-Frontend:
+Backend con Neon:
 
 ```env
+DATABASE_URL=postgresql+psycopg://usuario:password@host-pooler.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+DIRECT_DATABASE_URL=postgresql+psycopg://usuario:password@host.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+REDIS_URL=redis://127.0.0.1:6379/0
+APP_HOST=127.0.0.1
+APP_PORT=8000
+APP_ENV=neon
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:8000
+IMAGES_DIR=C:\ruta\absoluta\a\scan-sell2\images
+SEED_DEMO_DATA=false
 VITE_BUSINESS_ID=6
 VITE_STORE_ID=6
 ```
 
-Si esas variables no existen, el cliente usa `BUSINESS_ID=6` y `STORE_ID=6`.
+Si `VITE_BUSINESS_ID` y `VITE_STORE_ID` no existen, el cliente usa `BUSINESS_ID=6` y `STORE_ID=6`. Para Docker local con seed demo, normalmente son `1` y `1`; para la base compartida en Neon, valida los IDs reales antes de construir el frontend.
 
 ## API principal
 
@@ -270,7 +334,7 @@ Para validar reactivacion en Network:
 
 ## Notas de release 1.0.2
 
-Esta version refuerza el flujo POS de venta y catalogo: el stock se descuenta con validacion atomica, los movimientos de inventario quedan firmados/auditables, y `Guardar y agregar` desde una venta agrega el producto creado o reactivado al carrito activo. El stack Docker local tambien siembra movimientos `initial_stock` para los productos demo.
+Esta version refuerza el flujo POS de venta y catalogo: el stock se descuenta con validacion atomica, los movimientos de inventario quedan firmados/auditables, y `Guardar y agregar` desde una venta agrega el producto creado o reactivado al carrito activo. El stack Docker queda documentado en dos modos: BD local con seed demo y Neon sin seed demo.
 
 ## Notas de release 1.0.0
 
