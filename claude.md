@@ -6,7 +6,7 @@ VentaFacil / scan-sell2 es un POS de tienda pequena con backend FastAPI y fronte
 
 - Backend: Python, FastAPI async, SQLAlchemy async, Alembic, PostgreSQL.
 - Frontend real: React 19, Vite 7, TanStack Router, Zustand, Radix UI, Tailwind CSS.
-- Base de datos: PostgreSQL; Redis existe en docker-compose pero no es fuente de verdad.
+- Base de datos: PostgreSQL 18; Redis existe en docker-compose pero no es fuente de verdad.
 - App principal: catalogo, ventas, inventario, escaneo de codigos de barra, imagenes y settings.
 - Importante: `src/` es el frontend activo. `frontend/` esta vacio/legado. El README actual aun habla de Flutter y esta desactualizado.
 
@@ -16,7 +16,7 @@ Raiz:
 
 - `package.json`: scripts reales del frontend (`dev`, `build`, `lint`, `format`).
 - `vite.config.ts`, `tsconfig.json`, `components.json`: toolchain del frontend React.
-- `docker-compose.yml`: PostgreSQL en host `5433` y Redis en `6379`.
+- `docker-compose.yml`: PostgreSQL 18 en host `5433` y Redis en `6379`.
 - `.env` / `.env.example`: configuracion backend y rutas de imagenes.
 - `backend/`: API FastAPI, modelos, schemas, servicios y migraciones.
 - `src/`: frontend React/TanStack activo.
@@ -74,7 +74,7 @@ Infraestructura local:
 docker compose up -d postgres redis
 ```
 
-Ojo con puertos: `docker-compose.yml` expone PostgreSQL como `127.0.0.1:5433`, pero entornos locales pueden tener `.env` apuntando a `5432`.
+Ojo con puertos: `docker-compose.yml` expone PostgreSQL 18 como `127.0.0.1:5433`, pero entornos locales pueden tener `.env` apuntando a `5432`. Si existe un volumen Docker antiguo creado con PostgreSQL 14, migrar con dump/restore o recrearlo si solo tenia datos demo.
 
 ## Variables importantes
 

@@ -205,3 +205,17 @@ Se agrega un modo de ejecucion local para usuarios finales en otra maquina usand
 
 ### Rama
 `main`
+
+---
+
+## Release 1.0.0: Alineacion PostgreSQL 18 - 2026-04-26
+
+### Resumen
+Se alinea la base de datos Docker con PostgreSQL 18 para coincidir con la instalacion local de Windows y facilitar una futura migracion a Neon usando la misma version mayor.
+
+### Cambios Realizados
+- **Docker:** `docker-compose.yml` y `docker-compose.local.yml` ahora usan `postgres:18-alpine`.
+- **Documentacion:** README y `claude.md` documentan PostgreSQL 18 y advierten que los volumenes Docker creados con PostgreSQL 14 requieren dump/restore o recreacion si solo son datos demo.
+
+### Rama
+`main`

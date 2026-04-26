@@ -12,7 +12,7 @@ VentaFacil POS 1.0.0 consolida el retorno al frontend web React y el backend Fas
 |------|------------|
 | Frontend | React 19, Vite 7, TanStack Router/Start, Zustand, Radix UI, Tailwind CSS |
 | Backend | Python, FastAPI async, SQLAlchemy async, Pydantic |
-| Base de datos | PostgreSQL con Alembic |
+| Base de datos | PostgreSQL 18 con Alembic |
 | Cache opcional | Redis |
 | Escaneo | Lector HID tipo teclado y camara con ZXing |
 | Integracion externa | OpenFoodFacts via backend con cache local |
@@ -92,6 +92,8 @@ logs-ventafacil.bat
 
 Los datos quedan guardados en volumenes Docker. Detener la app no borra productos, ventas ni stock.
 
+La imagen Docker de base de datos esta alineada con PostgreSQL 18 (`postgres:18-alpine`). Si ya existia un volumen Docker creado con PostgreSQL 14, no se debe arrancar directamente con 18 sobre ese mismo volumen; hay que migrar con dump/restore o recrear el volumen si solo contenia datos demo.
+
 Nota tecnica: el contenedor frontend usa el servidor Vite en modo local (`npm run dev -- --host 0.0.0.0`) porque la salida actual de TanStack Start no expone un servidor `preview` standalone compatible con este empaquetado.
 
 ### 1. Clonar y configurar
@@ -110,7 +112,7 @@ Edita `.env` con tu `DATABASE_URL`, `REDIS_URL`, CORS e `IMAGES_DIR`.
 docker compose up -d postgres redis
 ```
 
-Nota: `docker-compose.yml` expone PostgreSQL en `127.0.0.1:5433`. Si usas PostgreSQL local en `5432`, ajusta `DATABASE_URL`.
+Nota: `docker-compose.yml` usa PostgreSQL 18 y lo expone en `127.0.0.1:5433`. Si usas PostgreSQL local en `5432`, ajusta `DATABASE_URL`.
 
 ### 3. Backend
 
