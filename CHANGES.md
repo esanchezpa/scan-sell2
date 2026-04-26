@@ -188,3 +188,20 @@ Se consolida la version estable 1.0.0 de VentaFacil POS con frontend React activ
 
 ### Rama
 `codex/feat-product-reactivation-flow`
+
+---
+
+## Release 1.0.0: Paquete local Docker - 2026-04-26
+
+### Resumen
+Se agrega un modo de ejecucion local para usuarios finales en otra maquina usando Docker Desktop y scripts `.bat`.
+
+### Cambios Realizados
+- **Docker:** Se agregan imagenes para backend y frontend, mas `docker-compose.local.yml` con PostgreSQL, Redis, API y UI.
+- **Windows:** Se agregan `start-ventafacil.bat`, `stop-ventafacil.bat` y `logs-ventafacil.bat`.
+- **Base de datos:** Se agrega migracion para defaults de identidad/autoincremento y tabla `external_product_cache` en instalaciones limpias.
+- **Seed:** `seed_data.py` ahora es idempotente y solo crea datos demo cuando la base esta vacia.
+- **Documentacion:** README actualizado con instrucciones de uso local para usuario final.
+
+### Rama
+`main`

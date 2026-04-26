@@ -6,17 +6,22 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import select
 from app.config import settings
 from app.models.core import Business, Store, User
 from app.models.product import Category, Product, ProductBarcode
 from app.models.inventory import StockBalance
-from app.models.sales import Sale
 
 async def seed_data():
-    engine = create_async_engine(settings.database_url, echo=True)
+    engine = create_async_engine(settings.database_url, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with async_session() as session:
+        existing = await session.execute(select(Business.id).limit(1))
+        if existing.scalar_one_or_none() is not None:
+            print("Seed data skipped: database already has a business.")
+            return
+
         print("Creating demo business and store...")
         business = Business(name="Mi Tiendita")
         session.add(business)

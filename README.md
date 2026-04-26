@@ -56,6 +56,44 @@ scan-sell2/
 
 ## Inicio rapido
 
+### Opcion recomendada para usuario final local
+
+En Windows, la forma mas simple de ejecutar VentaFacil POS 1.0.0 en otra maquina es con Docker Desktop.
+
+Requisitos:
+
+- Windows 10/11.
+- Docker Desktop instalado y abierto.
+- Puertos libres: `5173`, `8000`, `5433`, `6379`.
+
+Uso:
+
+```text
+start-ventafacil.bat
+```
+
+Esto levanta PostgreSQL, Redis, backend y frontend con Docker Compose, aplica migraciones, crea datos demo si la base esta vacia y abre:
+
+```text
+http://localhost:5173
+```
+
+Para detener la app:
+
+```text
+stop-ventafacil.bat
+```
+
+Para ver logs:
+
+```text
+logs-ventafacil.bat
+```
+
+Los datos quedan guardados en volumenes Docker. Detener la app no borra productos, ventas ni stock.
+
+Nota tecnica: el contenedor frontend usa el servidor Vite en modo local (`npm run dev -- --host 0.0.0.0`) porque la salida actual de TanStack Start no expone un servidor `preview` standalone compatible con este empaquetado.
+
 ### 1. Clonar y configurar
 
 ```bash
