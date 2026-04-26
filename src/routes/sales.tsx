@@ -26,7 +26,18 @@ export const Route = createFileRoute("/sales")({
   component: SalesPage,
 });
 
-function SaleDetailDialog({ sale, open, onClose }: { sale: Sale | null; open: boolean; onClose: () => void }) {
+const getSaleUnitCount = (sale: Sale) =>
+  sale.items.reduce((total, item) => total + item.quantity, 0);
+
+function SaleDetailDialog({
+  sale,
+  open,
+  onClose,
+}: {
+  sale: Sale | null;
+  open: boolean;
+  onClose: () => void;
+}) {
   const products = useStore((s) => s.products);
 
   if (!sale) return null;
@@ -66,7 +77,7 @@ function SaleDetailDialog({ sale, open, onClose }: { sale: Sale | null; open: bo
 
           <div>
             <p className="mb-2 text-sm font-semibold text-muted-foreground">
-              Productos ({sale.items.length})
+              Productos ({getSaleUnitCount(sale)})
             </p>
             <ul className="space-y-2">
               {sale.items.map((item, idx) => {
@@ -207,6 +218,7 @@ function SalesPage() {
           {sales.map((s) => {
             const c = customers.find((x) => x.id === s.customerId);
             const date = new Date(s.date);
+            const totalUnits = getSaleUnitCount(s);
             return (
               <li
                 key={s.id}
@@ -218,7 +230,7 @@ function SalesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-semibold">
-                    {s.items.length} producto(s) · {s.paymentMethod}
+                    {totalUnits} producto(s) · {s.paymentMethod}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {date.toLocaleDateString("es-PE")}{" "}
