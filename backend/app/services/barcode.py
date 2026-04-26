@@ -1,221 +1,183 @@
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
-
-from app.models.product import Product, ProductBarcode, Category
-from app.models.barcode import ExternalProductCache
-from app.models.inventory import StockBalance
+from sqlalchemy import select, and_, func
+from app.models.product import Product, ProductBarcode
+from app.models.product import external_product_cache
 from app.schemas.barcode import BarcodeLookupResponse
-
-
-CATEGORY_MAP = {
-    "bebidas": "Bebidas",
-    "beverages": "Bebidas",
-    "snacks": "Snacks",
-    "abarrotes": "Abarrotes",
-    "groceries": "Abarrotes",
-    "limpieza": "Limpieza",
-    "cleaning": "Limpieza",
-    "cuidado personal": "Cuidado Personal",
-    "personal care": "Cuidado Personal",
-}
-
+import httpx
+import json
 
 class BarcodeService:
+    OPENFOODFACTS_URL = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+    
     @staticmethod
-    async def lookup(db: AsyncSession, business_id: int, barcode: str) -> BarcodeLookupResponse:
-        internal_result = await BarcodeService._lookup_internal(db, business_id, barcode)
-        if internal_result:
-            return internal_result
-
-        cache_result = await BarcodeService._lookup_cache(db, barcode)
-        if cache_result:
-            return cache_result
-
-        off_result = await BarcodeService._lookup_openfoodfacts(db, barcode)
-        return off_result
-
+    async def lookup(session: AsyncSession, business_id: int, barcode: str) -> BarcodeLookupResponse:
+        # 1. Buscar producto interno activo
+        internal_product = await BarcodeService._find_internal_product(session, business_id, barcode)
+        if internal_product:
+            return BarcodeLookupResponse(
+                found=True,
+                source="internal",
+                barcode=barcode,
+                product_id=internal_product.id,
+                name=internal_product.name,
+                brand=None,  # No stored in current schema
+                image_url=internal_product.image_url,
+                category_name=internal_product.category_name,
+                price=internal_product.price,
+                cost=internal_product.cost,
+                stock_quantity=internal_product.stock_quantity
+            )
+        
+        # 2. Buscar en cache
+        cached = await BarcodeService._find_in_cache(session, barcode)
+        if cached and BarcodeService._is_cache_valid(cached.expires_at):
+            return BarcodeLookupResponse(
+                found=True,
+                source="cache",
+                barcode=barcode,
+                product_id=None,
+                name=cached.product_name,
+                brand=cached.brand,
+                image_url=cached.image_url,
+                category_name=cached.category_name,
+                price=None,  # Cache no tiene precio/costo
+                cost=None,
+                stock_quantity=None
+            )
+        
+        # 3. Llamar a OpenFoodFacts
+        off_data = await BarcodeService._fetch_from_openfoodfacts(barcode)
+        if not off_data:
+            return BarcodeLookupResponse(
+                found=False,
+                source=None,
+                barcode=barcode
+            )
+        
+        # 4. Guardar/actualizar en cache
+        await BarcodeService._upsert_cache(session, barcode, off_data)
+        
+        # 5. Devolver resultado
+        return BarcodeLookupResponse(
+            found=True,
+            source="openfoodfacts",
+            barcode=barcode,
+            product_id=None,
+            name=off_data.get("product_name"),
+            brand=off_data.get("brand"),
+            image_url=off_data.get("image_url"),
+            category_name=off_data.get("category_name"),
+            price=None,
+            cost=None,
+            stock_quantity=None
+        )
+    
     @staticmethod
-    async def get_internal_product_by_barcode(db: AsyncSession, business_id: int, barcode: str) -> Optional[Product]:
+    async def _find_internal_product(session: AsyncSession, business_id: int, barcode: str) -> Optional[Product]:
         query = (
             select(Product)
             .join(ProductBarcode, Product.id == ProductBarcode.product_id)
             .where(
                 ProductBarcode.barcode == barcode,
                 Product.business_id == business_id,
+                Product.is_active == True
             )
-            .options(selectinload(Product.barcodes))
         )
-        result = await db.execute(query)
-        product = result.scalars().first()
-
-        if not product:
-            return None
-
-        stock_query = select(
-            func.coalesce(func.sum(StockBalance.stock), 0)
-        ).where(StockBalance.product_id == product.id)
-        stock_result = await db.execute(stock_query)
-        stock_qty = stock_result.scalar() or 0
-        object.__setattr__(product, 'stock_quantity', stock_qty)
-
-        if product.category_id:
-            cat_query = select(Category.name).where(Category.id == product.category_id)
-            cat_result = await db.execute(cat_query)
-            cat_name = cat_result.scalar()
-            object.__setattr__(product, 'category_name', cat_name)
-
-        return product
-
+        result = await session.execute(query)
+        return result.scalars().first()
+    
     @staticmethod
-    async def _lookup_internal(db: AsyncSession, business_id: int, barcode: str) -> Optional[BarcodeLookupResponse]:
-        product = await BarcodeService.get_internal_product_by_barcode(db, business_id, barcode)
-
-        if not product:
-            return None
-
-        status = "active" if product.is_active else "inactive"
-
-        return BarcodeLookupResponse(
-            found=True,
-            source="internal",
-            status=status,
-            barcode=barcode,
-            product_id=product.id,
-            name=product.name,
-            brand=None,
-            image_url=product.image_url,
-            category_id=product.category_id,
-            category_name=getattr(product, 'category_name', None),
-            price=product.price,
-            cost=product.cost,
-            stock_quantity=getattr(product, 'stock_quantity', 0),
-            low_stock_threshold=product.low_stock_threshold,
-            description=product.description,
+    async def _find_in_cache(session: AsyncSession, barcode: str):
+        query = select(external_product_cache).where(
+            external_product_cache.barcode == barcode
         )
-
+        result = await session.execute(query)
+        return result.scalars().first()
+    
     @staticmethod
-    async def _lookup_cache(db: AsyncSession, barcode: str) -> Optional[BarcodeLookupResponse]:
-        query = select(ExternalProductCache).where(ExternalProductCache.barcode == barcode)
-        result = await db.execute(query)
-        cache_entry = result.scalars().first()
-
-        if not cache_entry:
-            return None
-
-        if cache_entry.expires_at <= datetime.now(timezone.utc):
-            return None
-
-        return BarcodeLookupResponse(
-            found=True,
-            source="cache",
-            status="external_suggestion",
-            barcode=barcode,
-            product_id=None,
-            name=cache_entry.product_name,
-            brand=cache_entry.brand,
-            image_url=cache_entry.image_url,
-            category_name=cache_entry.category_name,
-            price=None,
-            cost=None,
-            stock_quantity=None,
-        )
-
+    def _is_cache_valid(expires_at) -> bool:
+        from datetime import datetime, timezone
+        if expires_at is None:
+            return False
+        now = datetime.now(timezone.utc)
+        # Hacer que expires_at sea timezone-aware si no lo es
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at > now
+    
     @staticmethod
-    async def _lookup_openfoodfacts(db: AsyncSession, barcode: str) -> BarcodeLookupResponse:
-        import httpx
-
+    async def _fetch_from_openfoodfacts(barcode: str) -> Optional[dict]:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
-                    f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+                    BarcodeService.OPENFOODFACTS_URL.format(barcode=barcode)
                 )
-
-            if response.status_code != 200:
-                return BarcodeLookupResponse(found=False, source="none", status="not_found", barcode=barcode)
-
-            data = response.json()
-
-            if data.get("status") != 1 or not data.get("product"):
-                return BarcodeLookupResponse(found=False, source="none", status="not_found", barcode=barcode)
-
-            product = data["product"]
-
-            off_name = product.get("product_name") or product.get("product_name_es") or product.get("generic_name")
-            brand = product.get("brands")
-
-            image_url = None
-            candidates = [
-                product.get("image_url"),
-                product.get("front_image_url"),
-                product.get("selected_images", {}).get("front", {}).get("display", {}).get("es"),
-                product.get("selected_images", {}).get("front", {}).get("display", {}).get("en"),
-            ]
-            for candidate in candidates:
-                if isinstance(candidate, str) and candidate.startswith("http") and "/" in candidate:
-                    image_url = candidate
-                    break
-
-            category_name = None
-            categories_tags = product.get("categories_tags") or []
-            if isinstance(categories_tags, list):
-                for tag in categories_tags:
-                    tag_lower = tag.lower()
-                    for key, value in CATEGORY_MAP.items():
-                        if key in tag_lower:
-                            category_name = value
-                            break
-                    if category_name:
-                        break
-
-            now = datetime.now(timezone.utc)
-            expires_at = now + timedelta(days=30)
-
-            cache_query = select(ExternalProductCache).where(ExternalProductCache.barcode == barcode)
-            cache_result = await db.execute(cache_query)
-            existing = cache_result.scalars().first()
-
-            if existing:
-                existing.source = "openfoodfacts"
-                existing.product_name = off_name
-                existing.brand = brand
-                existing.image_url = image_url
-                existing.category_name = category_name
-                existing.raw_response = product
-                existing.last_fetched_at = now
-                existing.expires_at = expires_at
-            else:
-                new_cache = ExternalProductCache(
-                    barcode=barcode,
-                    source="openfoodfacts",
-                    product_name=off_name,
-                    brand=brand,
-                    image_url=image_url,
-                    category_name=category_name,
-                    raw_response=product,
-                    last_fetched_at=now,
-                    expires_at=expires_at,
-                )
-                db.add(new_cache)
-
-            await db.commit()
-
-            return BarcodeLookupResponse(
-                found=True,
-                source="openfoodfacts",
-                status="external_suggestion",
-                barcode=barcode,
-                product_id=None,
-                name=off_name,
-                brand=brand,
-                image_url=image_url,
-                category_name=category_name,
-                price=None,
-                cost=None,
-                stock_quantity=None,
-            )
-
+                if response.status_code != 200:
+                    return None
+                
+                data = response.json()
+                if data.get("status") != 1 or not data.get("product"):
+                    return None
+                
+                product = data["product"]
+                return {
+                    "product_name": product.get("product_name") or product.get("generic_name"),
+                    "brand": product.get("brands"),
+                    "image_url": product.get("image_url") or product.get("front_image_url"),
+                    "category_name": BarcodeService._extract_category(product.get("categories_tags", [])),
+                    "raw_response": data
+                }
         except Exception:
-            return BarcodeLookupResponse(found=False, source="none", status="not_found", barcode=barcode)
+            return None
+    
+    @staticmethod
+    def _extract_category(categories_tags) -> Optional[str]:
+        if not categories_tags:
+            return None
+        
+        # Mapeo simple de categorías de OpenFoodFacts a nuestras categorías
+        category_map = {
+            "bebidas": ["beverages", "drinks"],
+            "snacks": ["snacks", "sweet snacks", "salty snacks"],
+            "abarrotes": ["food", "canned", "breakfast foods"],
+            "limpieza": ["cleaning", "household", "detergent"],
+            "cuidado personal": ["hygiene", "beauty", "personal care"]
+        }
+        
+        for tag in categories_tags:
+            tag_lower = tag.lower()
+            for our_cat, off_cats in category_map.items():
+                if any(off_cat in tag_lower for off_cat in off_cats):
+                    return our_cat
+        
+        return categories_tags[0].lower() if categories_tags else None
+    
+    @staticmethod
+    async def _upsert_cache(session: AsyncSession, barcode: str, off_data: dict):
+        from datetime import datetime, timedelta, timezone
+        
+        # Buscar si ya existe
+        existing = await BarcodeService._find_in_cache(session, barcode)
+        
+        cache_data = {
+            "barcode": barcode,
+            "source": "openfoodfacts",
+            "product_name": off_data.get("product_name"),
+            "brand": off_data.get("brand"),
+            "image_url": off_data.get("image_url"),
+            "category_name": off_data.get("category_name"),
+            "raw_response": off_data.get("raw_response"),
+            "last_fetched_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=30)
+        }
+        
+        if existing:
+            # Actualizar
+            for key, value in cache_data.items():
+                setattr(existing, key, value)
+            session.add(existing)
+        else:
+            # Crear nuevo
+            cache_entry = external_product_cache(**cache_data)
+            session.add(cache_entry)
