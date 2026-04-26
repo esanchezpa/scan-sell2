@@ -1,9 +1,10 @@
 import { useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
+import { mapBarcodeLookupToProduct, type Product } from "@/lib/store";
 
 interface UseGlobalBarcodeOptions {
   onProductFound: (product: any) => void;
-  onProductNotFound: (barcode: string) => void;
+  onProductNotFound: (barcode: string, productForReactivate?: Product) => void;
   onError?: (err: Error) => void;
   enabled?: boolean;
 }
@@ -23,7 +24,7 @@ export function useGlobalBarcodeListener({
       if (result.source === "internal" && result.status === "inactive") {
         const productName = result.name || "este producto";
         if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
-          onProductNotFound(barcode);
+          onProductNotFound(barcode, mapBarcodeLookupToProduct(result, barcode));
         }
         return;
       }

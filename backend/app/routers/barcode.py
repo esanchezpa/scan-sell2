@@ -8,5 +8,5 @@ from app.schemas.barcode import BarcodeLookupResponse
 router = APIRouter(prefix="/barcode", tags=["barcode"])
 
 @router.get("/lookup/{barcode}", response_model=BarcodeLookupResponse)
-async def lookup_barcode(barcode: str, business_id: int, db: AsyncSession = Depends(get_db)):
-    return await BarcodeService.lookup(db, business_id, barcode)
+async def lookup_barcode(barcode: str, business_id: int, store_id: int, db: AsyncSession = Depends(get_db)):
+    return await BarcodeService.lookup(db, business_id, store_id, barcode)

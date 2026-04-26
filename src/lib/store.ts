@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { api, BUSINESS_ID, STORE_ID, type ReactivateProductPayload } from "./api";
+import {
+  api,
+  BUSINESS_ID,
+  STORE_ID,
+  type BarcodeLookupResponse,
+  type ReactivateProductPayload,
+} from "./api";
 
 export type ProductCategory =
   | "Bebidas"
@@ -9,6 +15,8 @@ export type ProductCategory =
   | "Limpieza"
   | "Cuidado Personal"
   | "Otros";
+
+export type ProductDialogMode = "create" | "edit" | "reactivate";
 
 export interface Product {
   id: string;
@@ -22,7 +30,15 @@ export interface Product {
   cost: number;
   stock: number;
   lowStockAlert: number;
+  lowStockThreshold?: number;
   imageUrl?: string;
+  image_url?: string;
+}
+
+export interface OpenProductDialogOptions {
+  mode?: ProductDialogMode;
+  product?: Product;
+  barcode?: string;
 }
 
 export interface SaleItem {
@@ -78,13 +94,13 @@ interface StoreState {
   error: string | null;
 
   accessibilityScale: number;
-  productDialog: { open: boolean; initial?: Product; barcode?: string };
+  productDialog: { open: boolean; initial?: Product; barcode?: string; mode?: ProductDialogMode };
 
   initialize: () => Promise<void>;
   setVendorName: (name: string) => void;
   setStoreName: (name: string) => void;
   setAccessibilityScale: (scale: number) => void;
-  openProductDialog: (initial?: Product, barcode?: string) => void;
+  openProductDialog: (initialOrOptions?: Product | OpenProductDialogOptions, barcode?: string, mode?: ProductDialogMode) => void;
   closeProductDialog: () => void;
 
   addProduct: (p: Omit<Product, "id">) => Promise<Product>;
@@ -107,6 +123,21 @@ interface StoreState {
   deleteInvoice: (id: string) => void;
 }
 
+const productCategories: ProductCategory[] = [
+  "Bebidas",
+  "Snacks",
+  "Abarrotes",
+  "Limpieza",
+  "Cuidado Personal",
+  "Otros",
+];
+
+const toProductCategory = (value?: string | null): ProductCategory => {
+  if (!value) return "Otros";
+  const matched = productCategories.find((category) => category.toLowerCase() === value.toLowerCase());
+  return matched ?? "Otros";
+};
+
 // Map backend category to frontend enum if needed, or just cast
 const mapProduct = (p: any): Product => ({
   id: p.id.toString(),
@@ -115,13 +146,45 @@ const mapProduct = (p: any): Product => ({
   description: p.description,
   barcode: p.barcodes?.[0]?.barcode || p.barcode,
   categoryId: p.category_id,
-  category: p.category_name || "Otros",
+  category: toProductCategory(p.category_name),
   price: p.price,
   cost: p.cost,
   stock: p.stock_quantity || 0,
   lowStockAlert: p.low_stock_threshold,
-  imageUrl: p.image_url
+  lowStockThreshold: p.low_stock_threshold,
+  imageUrl: p.image_url,
+  image_url: p.image_url,
 });
+
+export const mapBarcodeLookupToProduct = (
+  response: BarcodeLookupResponse,
+  fallbackBarcode: string,
+): Product => {
+  const lowStockThreshold = response.low_stock_threshold ?? 5;
+  const imageUrl = response.image_url ?? "";
+
+  return {
+    id: String(response.product_id ?? ""),
+    product_id: response.product_id ?? undefined,
+    name: response.name ?? "",
+    description: response.description ?? "",
+    barcode: response.barcode ?? fallbackBarcode,
+    imageUrl,
+    image_url: imageUrl,
+    categoryId: response.category_id ?? null,
+    category: toProductCategory(response.category_name),
+    price: response.price ?? 0,
+    cost: response.cost ?? 0,
+    stock: response.stock_quantity ?? 0,
+    lowStockAlert: lowStockThreshold,
+    lowStockThreshold,
+  };
+};
+
+const isOpenProductDialogOptions = (
+  value?: Product | OpenProductDialogOptions,
+): value is OpenProductDialogOptions =>
+  !!value && ("mode" in value || "product" in value);
 
 export const useStore = create<StoreState>()(
   persist(
@@ -174,7 +237,29 @@ export const useStore = create<StoreState>()(
         document.documentElement.style.setProperty("--scale", String(scale));
         set({ accessibilityScale: scale });
       },
-      openProductDialog: (initial, barcode) => set({ productDialog: { open: true, initial, barcode } }),
+      openProductDialog: (initialOrOptions, barcode, mode) => {
+        if (isOpenProductDialogOptions(initialOrOptions)) {
+          const product = initialOrOptions.product;
+          set({
+            productDialog: {
+              open: true,
+              initial: product,
+              barcode: initialOrOptions.barcode ?? product?.barcode,
+              mode: initialOrOptions.mode ?? (product ? "edit" : "create"),
+            },
+          });
+          return;
+        }
+
+        set({
+          productDialog: {
+            open: true,
+            initial: initialOrOptions,
+            barcode,
+            mode: mode ?? (initialOrOptions ? "edit" : "create"),
+          },
+        });
+      },
       closeProductDialog: () => set({ productDialog: { open: false } }),
 
       addProduct: async (p) => {

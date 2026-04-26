@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useStore, formatPEN, type SaleItem, type Product } from "@/lib/store";
+import { mapBarcodeLookupToProduct, useStore, formatPEN, type SaleItem, type Product } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Search, ScanBarcode, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
@@ -124,7 +124,11 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
         if (result.status === "inactive") {
           const productName = result.name || "este producto";
           if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
-            openProductDialog(undefined, trimmed);
+            openProductDialog({
+              mode: "reactivate",
+              product: mapBarcodeLookupToProduct(result, trimmed),
+              barcode: trimmed,
+            });
           }
           setQuery("");
           return;

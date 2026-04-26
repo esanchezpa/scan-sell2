@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useStore, type Product, type ProductCategory } from "@/lib/store";
+import { useStore, type Product, type ProductCategory, type ProductDialogMode } from "@/lib/store";
 import { api, BUSINESS_ID, STORE_ID } from "@/lib/api";
 import { Camera, ScanBarcode, Sparkles, Loader2, ImagePlus, X } from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
@@ -36,9 +36,10 @@ interface ProductDialogProps {
   onClose: () => void;
   initial?: Product;
   barcode?: string;
+  mode?: ProductDialogMode;
 }
 
-export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: ProductDialogProps) {
+export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mode }: ProductDialogProps) {
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
   const initialize = useStore((s) => s.initialize);
@@ -50,7 +51,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: 
   const [price, setPrice] = useState(String(initial?.price ?? ""));
   const [cost, setCost] = useState(String(initial?.cost ?? ""));
   const [stock, setStock] = useState(String(initial?.stock ?? ""));
-  const [alert, setAlert] = useState(String(initial?.lowStockAlert ?? "5"));
+  const [alert, setAlert] = useState(String(initial?.lowStockAlert ?? initial?.lowStockThreshold ?? "5"));
   const [imageUrl, setImageUrl] = useState("");
   const [imageUrlPath, setImageUrlPath] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
@@ -81,6 +82,8 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (offLookupRef.current) clearTimeout(offLookupRef.current);
     } else {
+      const nextMode = mode ?? (initial ? "edit" : "create");
+      const nextImageUrl = initial?.imageUrl ?? initial?.image_url ?? "";
       setName(initial?.name ?? "");
       setBarcode(initial?.barcode ?? barcodeProp ?? "");
       setCategory(initial?.category ?? "Otros");
@@ -88,16 +91,16 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: 
       setPrice(String(initial?.price ?? ""));
       setCost(String(initial?.cost ?? ""));
       setStock(String(initial?.stock ?? ""));
-      setAlert(String(initial?.lowStockAlert ?? "5"));
-      const fullUrl = api.getImageUrl(initial?.imageUrl ?? "") ?? initial?.imageUrl ?? "";
+      setAlert(String(initial?.lowStockAlert ?? initial?.lowStockThreshold ?? "5"));
+      const fullUrl = api.getImageUrl(nextImageUrl) ?? nextImageUrl;
       setImageUrl(fullUrl);
-      setImageUrlPath(initial?.imageUrl ?? "");
+      setImageUrlPath(nextImageUrl);
       initialBarcodeRef.current = initial?.barcode ?? barcodeProp ?? "";
       setBarcodeChanged(false);
       setDeletedProductId(null);
       setReactivatedProduct(null);
-      setPendingReactivationId(null);
-      setDialogMode(initial ? "edit" : "create");
+      setPendingReactivationId(nextMode === "reactivate" ? Number(initial?.product_id ?? initial?.id) || null : null);
+      setDialogMode(nextMode);
       setBarcodeError("");
       setBarcodeChecking(false);
       setBarcodeChanged(false);
@@ -107,12 +110,12 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (offLookupRef.current) clearTimeout(offLookupRef.current);
 
-      if (!initial && barcodeProp && barcodeProp.trim()) {
+      if (nextMode === "create" && !initial && barcodeProp && barcodeProp.trim()) {
         if (offLookupRef.current) clearTimeout(offLookupRef.current);
         offLookupRef.current = setTimeout(() => lookupBarcodeInfo(barcodeProp), 100);
       }
     }
-  }, [open, initial, barcodeProp]);
+  }, [open, initial, barcodeProp, mode]);
 
   const lookupBarcodeInfo = async (code: string) => {
     if (!code.trim() || initial) return;
@@ -429,7 +432,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp }: 
 
           {dialogMode === "reactivate" && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-              Producto desactivado. Al guardar, se reactivará este mismo registro con los datos actualizados.
+              Producto desactivado. Al guardar, se reactivará este mismo registro.
             </div>
           )}
 

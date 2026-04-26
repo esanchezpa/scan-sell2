@@ -1,7 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { useEffect } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, type Product } from "@/lib/store";
 import { ProductDialog } from "@/components/ProductDialog";
 import { useGlobalBarcodeListener } from "@/hooks/useGlobalBarcode";
 
@@ -105,7 +105,15 @@ function RootComponent() {
         imageUrl: product.image_url,
       });
     },
-    onProductNotFound: (barcode: string) => {
+    onProductNotFound: (barcode: string, productForReactivate?: Product) => {
+      if (productForReactivate) {
+        openProductDialog({
+          mode: "reactivate",
+          product: productForReactivate,
+          barcode,
+        });
+        return;
+      }
       openProductDialog(undefined, barcode);
     },
   });
@@ -123,6 +131,7 @@ function RootComponent() {
         onClose={handleProductDialogClose}
         initial={productDialog.initial}
         barcode={productDialog.barcode}
+        mode={productDialog.mode}
       />
     </>
   );

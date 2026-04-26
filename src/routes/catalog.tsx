@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useStore, formatPEN, type Product } from "@/lib/store";
+import { mapBarcodeLookupToProduct, useStore, formatPEN, type Product } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,11 @@ function CatalogPage() {
       if (result.source === "internal" && result.status === "inactive") {
         const productName = result.name || "este producto";
         if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
-          openProductDialog(undefined, code);
+          openProductDialog({
+            mode: "reactivate",
+            product: mapBarcodeLookupToProduct(result, code),
+            barcode: code,
+          });
         }
         setScannerOpen(false);
         return;
