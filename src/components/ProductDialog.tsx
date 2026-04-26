@@ -16,9 +16,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useStore, type Product, type ProductCategory, type ProductDialogMode } from "@/lib/store";
-import { api, BUSINESS_ID, STORE_ID } from "@/lib/api";
-import { Camera, ScanBarcode, Sparkles, Loader2, ImagePlus, X } from "lucide-react";
+import {
+  useStore,
+  type Product,
+  type ProductCategory,
+  type ProductDialogMode,
+  type ProductDialogSource,
+} from "@/lib/store";
+import { api } from "@/lib/api";
+import {
+  Loader2,
+  ImagePlus,
+  PackagePlus,
+  RefreshCcw,
+  Save,
+  ScanBarcode,
+  ShoppingCart,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { toast } from "sonner";
 
@@ -37,12 +53,20 @@ interface ProductDialogProps {
   initial?: Product;
   barcode?: string;
   mode?: ProductDialogMode;
+  source?: ProductDialogSource;
 }
 
-export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mode }: ProductDialogProps) {
+export function ProductDialog({
+  open,
+  onClose,
+  initial,
+  barcode: barcodeProp,
+  mode,
+  source = "catalog",
+}: ProductDialogProps) {
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
-  const initialize = useStore((s) => s.initialize);
+  const reactivateProduct = useStore((s) => s.reactivateProduct);
 
   const [name, setName] = useState(initial?.name ?? "");
   const [barcode, setBarcode] = useState(initial?.barcode ?? "");
@@ -51,7 +75,9 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
   const [price, setPrice] = useState(String(initial?.price ?? ""));
   const [cost, setCost] = useState(String(initial?.cost ?? ""));
   const [stock, setStock] = useState(String(initial?.stock ?? ""));
-  const [alert, setAlert] = useState(String(initial?.lowStockAlert ?? initial?.lowStockThreshold ?? "5"));
+  const [alert, setAlert] = useState(
+    String(initial?.lowStockAlert ?? initial?.lowStockThreshold ?? "5"),
+  );
   const [imageUrl, setImageUrl] = useState("");
   const [imageUrlPath, setImageUrlPath] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
@@ -99,7 +125,9 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
       setBarcodeChanged(false);
       setDeletedProductId(null);
       setReactivatedProduct(null);
-      setPendingReactivationId(nextMode === "reactivate" ? Number(initial?.product_id ?? initial?.id) || null : null);
+      setPendingReactivationId(
+        nextMode === "reactivate" ? Number(initial?.product_id ?? initial?.id) || null : null,
+      );
       setDialogMode(nextMode);
       setBarcodeError("");
       setBarcodeChecking(false);
@@ -141,7 +169,9 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
           if (result.name != null) setName(result.name);
           setCategoryId(result.category_id ?? null);
           if (result.category_name != null) {
-            const matched = categories.find(c => c.toLowerCase() === result.category_name!.toLowerCase());
+            const matched = categories.find(
+              (c) => c.toLowerCase() === result.category_name!.toLowerCase(),
+            );
             if (matched) setCategory(matched);
           }
           if (result.image_url) {
@@ -168,7 +198,9 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
       setCategoryId(result.category_id ?? null);
       if (result.name != null) setName(result.name);
       if (result.category_name != null) {
-        const matched = categories.find(c => c.toLowerCase() === result.category_name!.toLowerCase());
+        const matched = categories.find(
+          (c) => c.toLowerCase() === result.category_name!.toLowerCase(),
+        );
         if (matched) setCategory(matched);
       }
       if (result.image_url) {
@@ -282,7 +314,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
       setImageUrl(localUrl);
       setImageUploading(true);
       try {
-        const res = await api.products.uploadImage(file) as { image_url: string };
+        const res = (await api.products.uploadImage(file)) as { image_url: string };
         URL.revokeObjectURL(localUrl);
         const fullUrl = api.getImageUrl(res.image_url);
         setImageUrl(fullUrl ?? res.image_url);
@@ -307,7 +339,15 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
     lookupBarcodeInfo(barcode);
   };
 
-  const doSubmit = async () => {
+  const notifyProductSavedForSale = (product: Product) => {
+    window.dispatchEvent(
+      new CustomEvent<Product>("ventafacil:product-saved-for-sale", {
+        detail: product,
+      }),
+    );
+  };
+
+  const doSubmit = async (addToSale = false) => {
     const priceNum = Number(price);
     const costNum = Number(cost);
     const stockNum = parseInt(stock || "0", 10);
@@ -327,10 +367,8 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
 
     const trimmedBarcode = barcode.trim();
     const finalBarcode = trimmedBarcode || undefined;
-    const isValidImageUrl = imageUrlPath && (
-      imageUrlPath.startsWith("http") ||
-      imageUrlPath.startsWith("/images/")
-    );
+    const isValidImageUrl =
+      imageUrlPath && (imageUrlPath.startsWith("http") || imageUrlPath.startsWith("/images/"));
     const data = {
       name: name.trim(),
       barcode: finalBarcode,
@@ -351,9 +389,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
           setSubmitting(false);
           return;
         }
-        await api.products.reactivate(productIdToReactivate, {
-          business_id: BUSINESS_ID,
-          store_id: STORE_ID,
+        const product = await reactivateProduct(productIdToReactivate.toString(), {
           name: name.trim(),
           description: initial?.description ?? undefined,
           category: category,
@@ -364,8 +400,10 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
           stock_quantity: stockNum,
           image_url: isValidImageUrl ? imageUrlPath : undefined,
         });
-        await initialize();
-        toast.success("Producto reactivado");
+        if (addToSale) {
+          notifyProductSavedForSale(product);
+        }
+        toast.success(addToSale ? "Producto reactivado y agregado" : "Producto reactivado");
         reset();
         onClose();
         return;
@@ -377,8 +415,11 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
         onClose();
         return;
       }
-      await addProduct(data);
-      toast.success("Producto agregado");
+      const product = await addProduct(data);
+      if (addToSale) {
+        notifyProductSavedForSale(product);
+      }
+      toast.success(addToSale ? "Producto guardado y agregado" : "Producto agregado");
       reset();
       onClose();
     } catch (err) {
@@ -388,7 +429,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
     }
   };
 
-  const submit = async () => {
+  const submit = async (addToSale = false) => {
     if (barcodeError || barcodeChecking || submitting || aiLoading) return;
     if (name.trim().length < 3) {
       toast.error("El nombre debe tener al menos 3 caracteres");
@@ -396,7 +437,7 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
     }
 
     if (dialogMode === "reactivate") {
-      await doSubmit();
+      await doSubmit(addToSale);
       return;
     }
 
@@ -404,7 +445,11 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
     const productToSubmit = reactivatedProduct || initial;
 
     if (productToSubmit && barcodeChanged) {
-      if (!confirm(`¿Cambiar el código de barras de "${productToSubmit.barcode}" a "${trimmedBarcode}"?`)) {
+      if (
+        !confirm(
+          `¿Cambiar el código de barras de "${productToSubmit.barcode}" a "${trimmedBarcode}"?`,
+        )
+      ) {
         return;
       }
     }
@@ -415,198 +460,245 @@ export function ProductDialog({ open, onClose, initial, barcode: barcodeProp, mo
       }
     }
 
-    await doSubmit();
+    await doSubmit(addToSale);
   };
 
   const isDisabled = !!barcodeError || barcodeChecking || submitting || aiLoading;
+  const showSaveAndAdd = source === "sale" && dialogMode !== "edit";
 
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="!flex max-h-[calc(100dvh-1rem)] w-[calc(100vw-1.5rem)] max-w-lg !flex-col overflow-hidden !gap-0 !p-0 sm:w-full sm:max-h-[90dvh]">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle className="font-display text-xl text-primary">
-              {dialogMode === "edit" ? "Editar producto" : dialogMode === "reactivate" ? "Reactivar producto" : "Nuevo producto"}
+              {dialogMode === "edit"
+                ? "Editar producto"
+                : dialogMode === "reactivate"
+                  ? "Reactivar producto"
+                  : "Nuevo producto"}
             </DialogTitle>
           </DialogHeader>
 
-          {dialogMode === "reactivate" && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-              Producto desactivado. Al guardar, se reactivará este mismo registro.
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <button
-                onClick={onPhoto}
-                disabled={imageUploading}
-                className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-primary-soft text-primary-soft-foreground transition-colors hover:bg-accent disabled:opacity-50"
-                aria-label="Agregar imagen"
-              >
-                {imageUploading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : imageUrl ? (
-                  <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-xs">
-                    <ImagePlus className="h-6 w-6" />
-                    Foto
-                  </div>
-                )}
-              </button>
-
-              <div className="flex flex-1 flex-col gap-2">
-                <Label htmlFor="name">Nombre del producto</Label>
-                <Input
-                  id="name"
-                  placeholder="Ej. Coca-Cola 500ml"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+            {dialogMode === "reactivate" && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Producto desactivado. Al guardar, se reactivará este mismo registro.
               </div>
-            </div>
+            )}
 
-            <div>
-              <Label htmlFor="barcode">Código de barras</Label>
-              <div className="mt-1 flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    ref={barcodeInputRef}
-                    id="barcode"
-                    placeholder="Ej. 7501055... (Enter para buscar)"
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                    onKeyDown={handleBarcodeKeyDown}
-                    onBlur={handleBarcodeBlur}
-                    className={barcodeError ? "border-red-500 focus-visible:ring-red-500 pr-8" : "pr-8"}
-                  />
-                  {barcode && !barcodeChecking && !aiLoading && (
-                    <button
-                      type="button"
-                      onClick={() => { setBarcode(""); setBarcodeError(""); setDeletedProductId(null); barcodeInputRef.current?.focus(); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      aria-label="Limpiar código"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                  {(barcodeChecking || aiLoading) && (
-                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  onClick={() => setScannerOpen(true)}
-                  aria-label="Escanear"
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={onPhoto}
+                  disabled={imageUploading}
+                  className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border bg-primary-soft text-primary-soft-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                  aria-label="Agregar imagen"
                 >
-                  <ScanBarcode className="h-5 w-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  onClick={onAi}
-                  disabled={aiLoading || barcodeChecking || !barcode.trim()}
-                  aria-label="Buscar información del producto"
-                >
-                  {aiLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                  {imageUploading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : imageUrl ? (
+                    <img src={imageUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <Sparkles className="h-5 w-5" />
+                    <div className="flex flex-col items-center gap-1 text-xs">
+                      <ImagePlus className="h-6 w-6" />
+                      Foto
+                    </div>
                   )}
-                </Button>
-              </div>
-              {barcodeError && (
-                <p className="mt-1 text-xs text-red-500">{barcodeError}</p>
-              )}
-            </div>
+                </button>
 
-            <div>
-              <Label>Categoría</Label>
-              <Select value={category} onValueChange={(v) => setCategory(v as ProductCategory)}>
-                <SelectTrigger className="mt-1 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="flex flex-1 flex-col gap-2">
+                  <Label htmlFor="name">Nombre del producto</Label>
+                  <Input
+                    id="name"
+                    placeholder="Ej. Coca-Cola 500ml"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="price">Precio (S/)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                />
+                <Label htmlFor="barcode">Código de barras</Label>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      ref={barcodeInputRef}
+                      id="barcode"
+                      placeholder="Ej. 7501055... (Enter para buscar)"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      onKeyDown={handleBarcodeKeyDown}
+                      onBlur={handleBarcodeBlur}
+                      className={
+                        barcodeError ? "border-red-500 focus-visible:ring-red-500 pr-8" : "pr-8"
+                      }
+                    />
+                    {barcode && !barcodeChecking && !aiLoading && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBarcode("");
+                          setBarcodeError("");
+                          setDeletedProductId(null);
+                          barcodeInputRef.current?.focus();
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label="Limpiar código"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    {(barcodeChecking || aiLoading) && (
+                      <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => setScannerOpen(true)}
+                    aria-label="Escanear"
+                  >
+                    <ScanBarcode className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    onClick={onAi}
+                    disabled={aiLoading || barcodeChecking || !barcode.trim()}
+                    aria-label="Buscar información del producto"
+                  >
+                    {aiLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+                {barcodeError && <p className="mt-1 text-xs text-red-500">{barcodeError}</p>}
               </div>
+
               <div>
-                <Label htmlFor="cost">Costo (S/)</Label>
-                <Input
-                  id="cost"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={cost}
-                  onChange={(e) => setCost(e.target.value)}
-                />
+                <Label>Categoría</Label>
+                <Select value={category} onValueChange={(v) => setCategory(v as ProductCategory)}>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <Label htmlFor="stock">Stock inicial</Label>
-                <Input
-                  id="stock"
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="alert">Alerta stock</Label>
-                <Input
-                  id="alert"
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  value={alert}
-                  onChange={(e) => setAlert(e.target.value)}
-                />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="price">Precio (S/)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="cost">Costo (S/)</Label>
+                  <Input
+                    id="cost"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="stock">Stock inicial</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="alert">Alerta stock</Label>
+                  <Input
+                    id="alert"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={alert}
+                    onChange={(e) => setAlert(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="mt-2 gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button onClick={submit} className="shadow-soft" disabled={isDisabled}>
-              {submitting || aiLoading ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
-                <Camera className="mr-1 h-4 w-4 opacity-0" />
+          <DialogFooter className="shrink-0 border-t border-border bg-background px-6 py-4">
+            <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+              {showSaveAndAdd && (
+                <Button
+                  onClick={() => submit(true)}
+                  className="w-full bg-success text-success-foreground shadow-soft hover:bg-success/90 sm:w-auto"
+                  disabled={isDisabled}
+                >
+                  {submitting || aiLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                  )}
+                  {dialogMode === "reactivate" ? "Reactivar y agregar" : "Guardar y agregar"}
+                </Button>
               )}
-              {aiLoading ? "Buscando..." : dialogMode === "reactivate" ? "Reactivar producto" : dialogMode === "edit" ? "Guardar cambios" : "Guardar producto"}
-            </Button>
+              <Button
+                onClick={() => submit(false)}
+                className="w-full shadow-soft sm:w-auto"
+                disabled={isDisabled}
+              >
+                {submitting || aiLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="mr-2 flex h-4 w-4 items-center justify-center">
+                    {dialogMode === "reactivate" ? (
+                      <RefreshCcw className="h-4 w-4" />
+                    ) : dialogMode === "edit" ? (
+                      <Save className="h-4 w-4" />
+                    ) : (
+                      <PackagePlus className="h-4 w-4" />
+                    )}
+                  </span>
+                )}
+                {aiLoading
+                  ? "Buscando..."
+                  : dialogMode === "reactivate"
+                    ? "Reactivar producto"
+                    : dialogMode === "edit"
+                      ? "Guardar cambios"
+                      : "Guardar producto"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

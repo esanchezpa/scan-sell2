@@ -62,18 +62,16 @@ def configure_logging(settings: Any) -> None:
     atexit.register(_stop_listener)
 
     _install_queue_handler(logging.getLogger("app"), _queue_handler, log_level)
+    _install_queue_handler(logging.getLogger("app.api"), _queue_handler, logging.INFO)
     _install_queue_handler(logging.getLogger("uvicorn.error"), _queue_handler, log_level)
-
-    if settings.log_http_access:
-        _install_queue_handler(
-            logging.getLogger("uvicorn.access"),
-            _queue_handler,
-            logging.INFO,
-        )
 
     _install_queue_handler(logging.getLogger(), _queue_handler, logging.WARNING)
     _quiet_database_loggers()
-    logging.getLogger("app").info("Hourly file logging initialized in %s", log_dir)
+    logging.getLogger("app").info(
+        "Hourly file logging initialized in %s (api_requests=%s)",
+        log_dir,
+        settings.log_http_access,
+    )
 
 
 def _build_hourly_handler(

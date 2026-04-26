@@ -81,6 +81,8 @@ function RootComponent() {
   const openProductDialog = useStore((s) => s.openProductDialog);
   const closeProductDialog = useStore((s) => s.closeProductDialog);
   const productDialog = useStore((s) => s.productDialog);
+  const saleDialogOpen = useStore((s) => s.saleDialogOpen);
+  const salesRouteActive = useStore((s) => s.salesRouteActive);
   const accessibilityScale = useStore((s) => s.accessibilityScale);
 
   useEffect(() => {
@@ -116,6 +118,7 @@ function RootComponent() {
       }
       openProductDialog(undefined, barcode);
     },
+    enabled: !productDialog.open && !saleDialogOpen && !salesRouteActive,
   });
 
   const handleProductDialogClose = () => {
@@ -132,6 +135,7 @@ function RootComponent() {
         initial={productDialog.initial}
         barcode={productDialog.barcode}
         mode={productDialog.mode}
+        source={productDialog.source}
       />
     </>
   );

@@ -17,6 +17,7 @@ export type ProductCategory =
   | "Otros";
 
 export type ProductDialogMode = "create" | "edit" | "reactivate";
+export type ProductDialogSource = "catalog" | "sale";
 
 export interface Product {
   id: string;
@@ -39,6 +40,7 @@ export interface OpenProductDialogOptions {
   mode?: ProductDialogMode;
   product?: Product;
   barcode?: string;
+  source?: ProductDialogSource;
 }
 
 export interface SaleItem {
@@ -94,12 +96,22 @@ interface StoreState {
   error: string | null;
 
   accessibilityScale: number;
-  productDialog: { open: boolean; initial?: Product; barcode?: string; mode?: ProductDialogMode };
+  productDialog: {
+    open: boolean;
+    initial?: Product;
+    barcode?: string;
+    mode?: ProductDialogMode;
+    source?: ProductDialogSource;
+  };
+  saleDialogOpen: boolean;
+  salesRouteActive: boolean;
 
   initialize: () => Promise<void>;
   setVendorName: (name: string) => void;
   setStoreName: (name: string) => void;
   setAccessibilityScale: (scale: number) => void;
+  setSaleDialogOpen: (open: boolean) => void;
+  setSalesRouteActive: (active: boolean) => void;
   openProductDialog: (initialOrOptions?: Product | OpenProductDialogOptions, barcode?: string, mode?: ProductDialogMode) => void;
   closeProductDialog: () => void;
 
@@ -139,7 +151,7 @@ const toProductCategory = (value?: string | null): ProductCategory => {
 };
 
 // Map backend category to frontend enum if needed, or just cast
-const mapProduct = (p: any): Product => ({
+export const mapProduct = (p: any): Product => ({
   id: p.id.toString(),
   product_id: p.product_id ?? p.id,
   name: p.name,
@@ -155,6 +167,32 @@ const mapProduct = (p: any): Product => ({
   imageUrl: p.image_url,
   image_url: p.image_url,
 });
+
+const mapSale = (s: any): Sale => ({
+  id: s.id.toString(),
+  date: s.created_at,
+  items: s.items.map((i: any) => ({
+    productId: i.product_id?.toString() || "",
+    name: i.product_name_at_sale,
+    price: i.price_at_sale,
+    quantity: i.quantity,
+  })),
+  total: s.total_amount,
+  paymentMethod: s.payments[0]?.payment_method === "cash" ? "Efectivo" : "Tarjeta",
+  status: s.status === "completed" ? "Completada" : "Pendiente",
+});
+
+const fetchBackendSnapshot = async () => {
+  const [products, sales] = await Promise.all([
+    api.products.list(),
+    api.sales.getHistory(),
+  ]);
+
+  return {
+    products: products.map(mapProduct),
+    sales: sales.map(mapSale),
+  };
+};
 
 export const mapBarcodeLookupToProduct = (
   response: BarcodeLookupResponse,
@@ -201,29 +239,15 @@ export const useStore = create<StoreState>()(
 
       accessibilityScale: 1,
       productDialog: { open: false },
+      saleDialogOpen: false,
+      salesRouteActive: false,
 
       initialize: async () => {
         set({ isLoading: true, error: null });
         try {
-          const [products, sales] = await Promise.all([
-            api.products.list(),
-            api.sales.getHistory(),
-          ]);
+          const snapshot = await fetchBackendSnapshot();
           set({
-            products: products.map(mapProduct),
-            sales: sales.map((s: any) => ({
-              id: s.id.toString(),
-              date: s.created_at,
-              items: s.items.map((i: any) => ({
-                productId: i.product_id?.toString() || "",
-                name: i.product_name_at_sale,
-                price: i.price_at_sale,
-                quantity: i.quantity,
-              })),
-              total: s.total_amount,
-              paymentMethod: s.payments[0]?.payment_method === "cash" ? "Efectivo" : "Tarjeta",
-              status: s.status === "completed" ? "Completada" : "Pendiente"
-            })),
+            ...snapshot,
             isLoading: false
           });
         } catch (err) {
@@ -237,6 +261,8 @@ export const useStore = create<StoreState>()(
         document.documentElement.style.setProperty("--scale", String(scale));
         set({ accessibilityScale: scale });
       },
+      setSaleDialogOpen: (open) => set({ saleDialogOpen: open }),
+      setSalesRouteActive: (active) => set({ salesRouteActive: active }),
       openProductDialog: (initialOrOptions, barcode, mode) => {
         if (isOpenProductDialogOptions(initialOrOptions)) {
           const product = initialOrOptions.product;
@@ -246,6 +272,7 @@ export const useStore = create<StoreState>()(
               initial: product,
               barcode: initialOrOptions.barcode ?? product?.barcode,
               mode: initialOrOptions.mode ?? (product ? "edit" : "create"),
+              source: initialOrOptions.source ?? "catalog",
             },
           });
           return;
@@ -257,6 +284,7 @@ export const useStore = create<StoreState>()(
             initial: initialOrOptions,
             barcode,
             mode: mode ?? (initialOrOptions ? "edit" : "create"),
+            source: "catalog",
           },
         });
       },
@@ -330,10 +358,24 @@ export const useStore = create<StoreState>()(
           paymentMethod: s.paymentMethod,
           status: "Completada"
         };
+        const soldQuantities = s.items.reduce<Record<string, number>>((acc, item) => {
+          acc[item.productId] = (acc[item.productId] ?? 0) + item.quantity;
+          return acc;
+        }, {});
+
         set((state) => ({
-          sales: [newSale, ...state.sales]
+          sales: [newSale, ...state.sales],
+          products: state.products.map((product) => {
+            const soldQuantity = soldQuantities[product.id] ?? 0;
+            if (!soldQuantity) return product;
+            return { ...product, stock: product.stock - soldQuantity };
+          }),
         }));
-        await get().initialize(); // Sync with backend to get correct stock
+
+        void fetchBackendSnapshot()
+          .then((snapshot) => set(snapshot))
+          .catch((err) => set({ error: (err as Error).message }));
+
         return newSale;
       },
       deleteSale: (id) => set((s) => ({ sales: s.sales.filter((x) => x.id !== id) })),
@@ -366,7 +408,19 @@ export const useStore = create<StoreState>()(
       deleteInvoice: (id) =>
         set((s) => ({ invoices: s.invoices.filter((x) => x.id !== id) })),
     }),
-    { name: "ventafacil-store" }
+    {
+      name: "ventafacil-store",
+      partialize: (state) => ({
+        storeName: state.storeName,
+        vendorName: state.vendorName,
+        products: state.products,
+        sales: state.sales,
+        customers: state.customers,
+        suppliers: state.suppliers,
+        invoices: state.invoices,
+        accessibilityScale: state.accessibilityScale,
+      }),
+    }
   )
 );
 

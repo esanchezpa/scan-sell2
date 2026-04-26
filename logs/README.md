@@ -15,8 +15,17 @@ Los archivos reales de log no se versionan en Git.
 - Retencion: 14 dias por defecto.
 - Nivel normal: `INFO`.
 - SQLAlchemy: no se guarda por defecto; activar `DB_ECHO=true` solo para depurar consultas.
-- Access logs HTTP: apagados por defecto en archivos persistentes; activar `LOG_HTTP_ACCESS=true` solo para diagnostico.
+- Requests API: guardados por defecto para `GET`, `POST`, `PATCH`, `DELETE`, etc., con metodo, ruta, status y duracion.
+- Preflight `OPTIONS`: se omiten por defecto para no llenar el log.
 - Escritura: asincrona mediante cola de logging para reducir impacto en requests.
+
+Ejemplo:
+
+```text
+2026-04-26 11:12:40 INFO [app.api] POST /api/v1/sales/ -> 201 238.4ms client=127.0.0.1
+2026-04-26 11:12:41 INFO [app.api] GET /api/v1/products/?business_id=6 -> 200 48.9ms client=127.0.0.1
+2026-04-26 11:12:45 WARNING [app.api] GET /api/v1/products/barcode/0000?business_id=6 -> 404 19.7ms client=127.0.0.1
+```
 
 ## Configuracion
 
@@ -26,7 +35,9 @@ Variables disponibles:
 LOG_DIR=../logs
 LOG_LEVEL=INFO
 LOG_RETENTION_DAYS=14
-LOG_HTTP_ACCESS=false
+LOG_HTTP_ACCESS=true
+LOG_HTTP_SKIP_OPTIONS=true
+LOG_SLOW_REQUEST_MS=1000
 DB_ECHO=false
 ```
 

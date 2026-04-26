@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,18 +19,40 @@ import { api } from "@/lib/api";
 import { Search, ScanBarcode, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { toast } from "sonner";
+import { useGlobalBarcodeListener } from "@/hooks/useGlobalBarcode";
 
 interface NewSaleDialogProps {
   open: boolean;
   onClose: () => void;
+  initialProduct?: Product | null;
+  onInitialProductConsumed?: () => void;
 }
 
-export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
+const mapApiProductToCartProduct = (product: any): Product => ({
+  id: product.id.toString(),
+  name: product.name,
+  barcode: product.barcodes?.[0]?.barcode || product.barcode,
+  category: product.category_name || "Otros",
+  price: product.price,
+  cost: product.cost,
+  stock: product.stock_quantity || 0,
+  lowStockAlert: product.low_stock_threshold,
+  imageUrl: product.image_url,
+});
+
+export function NewSaleDialog({
+  open,
+  onClose,
+  initialProduct,
+  onInitialProductConsumed,
+}: NewSaleDialogProps) {
   const products = useStore((s) => s.products);
   const findByBarcode = useStore((s) => s.findByBarcode);
   const customers = useStore((s) => s.customers);
   const addSale = useStore((s) => s.addSale);
   const openProductDialog = useStore((s) => s.openProductDialog);
+  const setSaleDialogOpen = useStore((s) => s.setSaleDialogOpen);
+  const productDialogOpen = useStore((s) => s.productDialog.open);
 
   const [query, setQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -54,6 +76,11 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
   }, [products, query]);
 
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  useEffect(() => {
+    setSaleDialogOpen(open);
+    return () => setSaleDialogOpen(false);
+  }, [open, setSaleDialogOpen]);
 
   const addItem = (productId: string) => {
     const p = products.find((x) => x.id === productId);
@@ -89,7 +116,7 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
     );
   };
 
-  const addProductToCart = (p: Product) => {
+  const addProductToCart = useCallback((p: Product) => {
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === p.id);
       if (existing) {
@@ -103,7 +130,65 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
       }
       return [...prev, { productId: p.id, name: p.name, price: p.price, quantity: 1 }];
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!open || !initialProduct) return;
+
+    addProductToCart(initialProduct);
+    toast.success(`Agregado: ${initialProduct.name}`);
+    setQuery("");
+    searchRef.current?.focus();
+    onInitialProductConsumed?.();
+  }, [addProductToCart, initialProduct, onInitialProductConsumed, open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleProductSavedForSale = (event: Event) => {
+      const product = (event as CustomEvent<Product>).detail;
+      if (!product?.id) return;
+      addProductToCart(product);
+      setQuery("");
+      searchRef.current?.focus();
+    };
+
+    window.addEventListener("ventafacil:product-saved-for-sale", handleProductSavedForSale);
+    return () => {
+      window.removeEventListener("ventafacil:product-saved-for-sale", handleProductSavedForSale);
+    };
+  }, [addProductToCart, open]);
+
+  useGlobalBarcodeListener({
+    enabled: open && !scannerOpen && !productDialogOpen,
+    onProductFound: (product: any) => {
+      const mapped = mapApiProductToCartProduct(product);
+      addProductToCart(mapped);
+      toast.success(`Agregado: ${mapped.name}`);
+      setQuery("");
+    },
+    onProductNotFound: (barcode: string, productForReactivate?: Product) => {
+      if (productForReactivate) {
+        openProductDialog({
+          mode: "reactivate",
+          product: productForReactivate,
+          barcode,
+          source: "sale",
+        });
+        setQuery("");
+        return;
+      }
+
+      if (confirm(`Código "${barcode}" no encontrado. ¿Desea agregarlo como nuevo producto?`)) {
+        openProductDialog({
+          mode: "create",
+          barcode,
+          source: "sale",
+        });
+      }
+      setQuery("");
+    },
+  });
 
   const lookupBarcode = async (code: string) => {
     const trimmed = code.trim();
@@ -128,24 +213,14 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
               mode: "reactivate",
               product: mapBarcodeLookupToProduct(result, trimmed),
               barcode: trimmed,
+              source: "sale",
             });
           }
           setQuery("");
           return;
         }
-        const product = await api.products.getByBarcode(trimmed) as any;
-        if (product && product.id) {
-          const mapped: Product = {
-            id: product.id.toString(),
-            name: product.name,
-            barcode: product.barcodes?.[0]?.barcode || product.barcode,
-            category: product.category_name || "Otros",
-            price: product.price,
-            cost: product.cost,
-            stock: product.stock_quantity || 0,
-            lowStockAlert: product.low_stock_threshold,
-            imageUrl: product.image_url,
-          };
+        if (result.status === "active" && result.product_id) {
+          const mapped = mapBarcodeLookupToProduct(result, trimmed);
           addProductToCart(mapped);
           toast.success(`Agregado: ${mapped.name}`);
           setQuery("");
@@ -158,7 +233,11 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
 
       if (result.found) {
         if (confirm(`Código "${trimmed}" encontrado en base de datos externa (${result.source}). ¿Desea agregarlo como nuevo producto?`)) {
-          openProductDialog(undefined, trimmed);
+          openProductDialog({
+            mode: "create",
+            barcode: trimmed,
+            source: "sale",
+          });
         }
         setQuery("");
         return;
@@ -168,7 +247,11 @@ export function NewSaleDialog({ open, onClose }: NewSaleDialogProps) {
     }
 
     if (confirm(`Código "${trimmed}" no encontrado. ¿Desea agregarlo como nuevo producto?`)) {
-      openProductDialog(undefined, trimmed);
+      openProductDialog({
+        mode: "create",
+        barcode: trimmed,
+        source: "sale",
+      });
     }
   };
 

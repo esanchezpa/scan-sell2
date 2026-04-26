@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useStore, formatPEN, type Sale } from "@/lib/store";
+import { useStore, formatPEN, mapProduct, type Product, type Sale } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { NewSaleDialog } from "@/components/NewSaleDialog";
 import { toast } from "sonner";
+import { useGlobalBarcodeListener } from "@/hooks/useGlobalBarcode";
 import {
   Dialog,
   DialogContent,
@@ -125,8 +126,50 @@ function SalesPage() {
   const deleteSale = useStore((s) => s.deleteSale);
   const customers = useStore((s) => s.customers);
   const storeName = useStore((s) => s.storeName);
+  const openProductDialog = useStore((s) => s.openProductDialog);
+  const setSalesRouteActive = useStore((s) => s.setSalesRouteActive);
+  const productDialogOpen = useStore((s) => s.productDialog.open);
   const [openSale, setOpenSale] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    setSalesRouteActive(true);
+    return () => setSalesRouteActive(false);
+  }, [setSalesRouteActive]);
+
+  useGlobalBarcodeListener({
+    enabled: !openSale && !productDialogOpen && !selectedSale,
+    onProductFound: (product: any) => {
+      setPendingProduct(mapProduct(product));
+      setOpenSale(true);
+    },
+    onProductNotFound: (barcode: string, productForReactivate?: Product) => {
+      if (productForReactivate) {
+        setOpenSale(true);
+        setTimeout(() => {
+          openProductDialog({
+            mode: "reactivate",
+            product: productForReactivate,
+            barcode,
+            source: "sale",
+          });
+        }, 0);
+        return;
+      }
+
+      if (confirm(`Código "${barcode}" no encontrado. ¿Desea agregarlo como nuevo producto?`)) {
+        setOpenSale(true);
+        setTimeout(() => {
+          openProductDialog({
+            mode: "create",
+            barcode,
+            source: "sale",
+          });
+        }, 0);
+      }
+    },
+  });
 
   return (
     <AppShell>
@@ -206,7 +249,12 @@ function SalesPage() {
         </ul>
       )}
 
-      <NewSaleDialog open={openSale} onClose={() => setOpenSale(false)} />
+      <NewSaleDialog
+        open={openSale}
+        onClose={() => setOpenSale(false)}
+        initialProduct={pendingProduct}
+        onInitialProductConsumed={() => setPendingProduct(null)}
+      />
       <SaleDetailDialog sale={selectedSale} open={!!selectedSale} onClose={() => setSelectedSale(null)} />
     </AppShell>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
-import { mapBarcodeLookupToProduct, type Product } from "@/lib/store";
+import { mapBarcodeLookupToProduct, type Product, useStore } from "@/lib/store";
 
 interface UseGlobalBarcodeOptions {
   onProductFound: (product: any) => void;
@@ -15,31 +15,70 @@ export function useGlobalBarcodeListener({
   onError,
   enabled = true,
 }: UseGlobalBarcodeOptions) {
+  const findByBarcode = useStore((s) => s.findByBarcode);
   const bufferRef = useRef("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const toProductPayload = useCallback((product: Product | any, fallbackBarcode?: string) => {
+    if (product?.stock_quantity !== undefined || product?.category_name !== undefined || product?.barcodes) {
+      return product;
+    }
+
+    const id = Number(product?.product_id ?? product?.id ?? 0);
+    const barcode = product?.barcode ?? fallbackBarcode ?? "";
+
+    return {
+      id,
+      product_id: id,
+      name: product?.name ?? "",
+      description: product?.description ?? null,
+      barcode,
+      category_id: product?.categoryId ?? null,
+      category_name: product?.category ?? "Otros",
+      price: product?.price ?? 0,
+      cost: product?.cost ?? 0,
+      stock_quantity: product?.stock ?? 0,
+      low_stock_threshold: product?.lowStockThreshold ?? product?.lowStockAlert ?? 5,
+      image_url: product?.image_url ?? product?.imageUrl ?? null,
+      barcodes: barcode
+        ? [
+            {
+              barcode,
+              is_primary: true,
+            },
+          ]
+        : [],
+    };
+  }, []);
+
   const lookupBarcode = useCallback(async (barcode: string) => {
+    const cached = findByBarcode(barcode);
+    if (cached) {
+      onProductFound(toProductPayload(cached, barcode));
+      return;
+    }
+
     try {
       const result = await api.barcode.lookup(barcode);
       if (result.source === "internal" && result.status === "inactive") {
         const productName = result.name || "este producto";
-        if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivar y editar este producto?`)) {
+        if (confirm(`Este código pertenece a un producto eliminado: "${productName}". ¿Deseas reactivarlo?`)) {
           onProductNotFound(barcode, mapBarcodeLookupToProduct(result, barcode));
         }
         return;
       }
 
       if (result.source === "internal" && result.status === "active") {
-        const product = await api.products.getByBarcode(barcode) as any;
-        onProductFound(product);
+        onProductFound(toProductPayload(mapBarcodeLookupToProduct(result, barcode), barcode));
         return;
       }
 
       onProductNotFound(barcode);
-    } catch {
+    } catch (err) {
+      onError?.(err as Error);
       onProductNotFound(barcode);
     }
-  }, [onProductFound, onProductNotFound]);
+  }, [findByBarcode, onError, onProductFound, onProductNotFound, toProductPayload]);
 
   useEffect(() => {
     if (!enabled) return;

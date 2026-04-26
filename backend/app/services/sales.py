@@ -5,12 +5,12 @@ from sqlalchemy import select
 
 from app.models.sales import Sale, SaleItem, SalePayment
 from app.models.inventory import StockBalance, InventoryMovement
-from app.schemas.sales import SaleCreate
+from app.schemas.sales import SaleCreate, SaleResponse, SaleItemResponse, SalePaymentResponse
 
 
 class SalesService:
     @staticmethod
-    async def create_sale(session: AsyncSession, sale_in: SaleCreate) -> Sale:
+    async def create_sale(session: AsyncSession, sale_in: SaleCreate) -> SaleResponse:
         """
         Creates a sale, sale items, and updates stock balances atomically.
         If any step fails, the whole transaction rolls back.
@@ -33,12 +33,14 @@ class SalesService:
         await session.flush() # Get sale ID
 
         # 2. Add Sale Items & Update Stock
+        sale_items: list[SaleItem] = []
         for item_in in sale_in.items:
             db_item = SaleItem(
                 sale_id=db_sale.id,
                 **item_in.model_dump()
             )
             session.add(db_item)
+            sale_items.append(db_item)
 
             if item_in.product_id:
                 # Stock decrement
@@ -73,26 +75,37 @@ class SalesService:
                 session.add(movement)
 
         # 3. Add Payments
+        sale_payments: list[SalePayment] = []
         for payment_in in sale_in.payments:
             db_payment = SalePayment(
                 sale_id=db_sale.id,
                 **payment_in.model_dump()
             )
             session.add(db_payment)
+            sale_payments.append(db_payment)
 
-        # 4. Commit atomic transaction
+        # 4. Flush inserts once so generated IDs/default timestamps are available
+        await session.flush()
+
+        # 5. Commit atomic transaction
         await session.commit()
 
-        # 5. Reload with relationships
-        from sqlalchemy.orm import selectinload
-        reloaded = await session.execute(
-            select(Sale)
-            .where(Sale.id == db_sale.id)
-            .options(selectinload(Sale.items), selectinload(Sale.payments))
+        # 6. Return the created sale without an extra reload round-trip
+        return SaleResponse(
+            id=db_sale.id,
+            business_id=db_sale.business_id,
+            store_id=db_sale.store_id,
+            cashier_id=db_sale.cashier_id,
+            status=db_sale.status,
+            subtotal=db_sale.subtotal,
+            discount_total=db_sale.discount_total,
+            tax_total=db_sale.tax_total,
+            total_amount=db_sale.total_amount,
+            client_generated_id=db_sale.client_generated_id,
+            created_at=db_sale.created_at,
+            items=[SaleItemResponse.model_validate(item) for item in sale_items],
+            payments=[SalePaymentResponse.model_validate(payment) for payment in sale_payments],
         )
-        db_sale = reloaded.scalars().first()
-
-        return db_sale
 
     @staticmethod
     async def get_sales_history(session: AsyncSession, business_id: int) -> List[Sale]:

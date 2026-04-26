@@ -83,7 +83,7 @@ export const api = {
     addMovement: (data: any) => request<any>("/inventory/movement", { method: "POST", body: JSON.stringify(data) }),
   },
   sales: {
-    create: (data: any) => request<any>("/sales", { method: "POST", body: JSON.stringify(data) }),
+    create: (data: any) => request<any>("/sales/", { method: "POST", body: JSON.stringify(data) }),
     getHistory: () => request<any[]>(`/sales/history?business_id=${BUSINESS_ID}`),
   },
   reports: {

@@ -45,7 +45,9 @@ class Settings(BaseSettings):
     log_dir: str = "../logs"
     log_level: str = "INFO"
     log_retention_days: int = 14
-    log_http_access: bool = False
+    log_http_access: bool = True
+    log_http_skip_options: bool = True
+    log_slow_request_ms: int = 1000
 
     # OpenFoodFacts
     openfoodfacts_base_url: str = "https://world.openfoodfacts.org/api/v2"
