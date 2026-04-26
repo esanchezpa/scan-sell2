@@ -34,7 +34,7 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
-    return settings.database_url
+    return settings.direct_database_url or settings.database_url
 
 
 

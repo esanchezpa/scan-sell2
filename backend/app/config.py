@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+psycopg://user:password@localhost:5432/ventafacil_dev"
+    direct_database_url: str | None = None
     db_echo: bool = False
 
     # Redis (optional)

@@ -59,11 +59,11 @@ export const api = {
     return `${IMAGE_BASE_URL}${path}`;
   },
   products: {
-    list: () => request<any[]>(`/products?business_id=${BUSINESS_ID}`),
+    list: () => request<any[]>(`/products/?business_id=${BUSINESS_ID}`),
     get: (id: string) => request<any>(`/products/${id}`),
     getByBarcode: (barcode: string) => request<any>(`/products/barcode/${encodeURIComponent(barcode)}?business_id=${BUSINESS_ID}`),
     barcodeExists: (barcode: string) => request<{exists: boolean; is_deleted: boolean; product_id: number | null}>(`/products/barcode-exists/${encodeURIComponent(barcode)}?business_id=${BUSINESS_ID}`),
-    create: (data: any) => request<any>("/products", { method: "POST", body: JSON.stringify(data) }),
+    create: (data: any) => request<any>("/products/", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: any) => request<any>(`/products/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/products/${id}`, { method: "DELETE" }),
     reactivate: (id: string | number, data: ReactivateProductPayload) =>

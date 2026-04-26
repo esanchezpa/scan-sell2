@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, String, DateTime, func, Text, Integer, ForeignKey
+from sqlalchemy import BigInteger, String, DateTime, func, Text, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.database import Base
 
 class StockBalance(Base):
     __tablename__ = "stock_balances"
+    __table_args__ = (
+        UniqueConstraint("store_id", "product_id", name="uq_stock_balances_store_product"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     store_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)

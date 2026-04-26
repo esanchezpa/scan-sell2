@@ -13,6 +13,10 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(get_db)):
     try:
         sale = await SalesService.create_sale(db, sale_in)
         return sale
+    except ValueError as e:
+        if str(e) == "STOCK_INSUFFICIENT":
+            raise HTTPException(status_code=400, detail="STOCK_INSUFFICIENT")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import traceback
         traceback.print_exc()

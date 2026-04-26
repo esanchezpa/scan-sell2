@@ -1,15 +1,125 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
 from app.models.product import Product, ProductBarcode, Category
-from app.schemas.products import ProductCreate, ProductUpdate, ProductBarcodeCreate
+from app.schemas.products import ProductCreate, ProductUpdate, ProductResponse, ProductBarcodeResponse
 from app.models.inventory import StockBalance, InventoryMovement
 from app.models.core import Store
 
 
 class ProductService:
+    @staticmethod
+    def _normalize_image_url(image_url: Optional[str]) -> Optional[str]:
+        if not image_url:
+            return image_url
+        if image_url.startswith("http://localhost:8000"):
+            image_url = image_url.replace("http://localhost:8000", "")
+        if not (
+            image_url.startswith("/images/")
+            or image_url.startswith("http://")
+            or image_url.startswith("https://")
+        ):
+            return None
+        return image_url
+
+    @staticmethod
+    async def _resolve_category(
+        session: AsyncSession,
+        business_id: int,
+        category_name: Optional[str] = None,
+        category_id: Optional[int] = None,
+    ) -> tuple[Optional[int], Optional[str]]:
+        if category_name:
+            cat_query = select(Category).where(
+                Category.business_id == business_id,
+                Category.name == category_name,
+            )
+            cat_result = await session.execute(cat_query)
+            db_category = cat_result.scalars().first()
+            if not db_category:
+                db_category = Category(business_id=business_id, name=category_name)
+                session.add(db_category)
+                await session.flush()
+            return db_category.id, db_category.name
+
+        if category_id is not None:
+            cat_query = select(Category).where(
+                Category.id == category_id,
+                Category.business_id == business_id,
+            )
+            cat_result = await session.execute(cat_query)
+            db_category = cat_result.scalars().first()
+            if not db_category:
+                raise ValueError("CATEGORY_NOT_FOUND")
+            return db_category.id, db_category.name
+
+        return None, None
+
+    @staticmethod
+    async def _get_default_store(session: AsyncSession, business_id: int) -> Optional[Store]:
+        store_query = select(Store).where(Store.business_id == business_id).limit(1)
+        store_result = await session.execute(store_query)
+        return store_result.scalars().first()
+
+    @staticmethod
+    async def _set_stock_balance(
+        session: AsyncSession,
+        *,
+        store_id: int,
+        product_id: int,
+        stock: int,
+    ) -> None:
+        insert_stmt = pg_insert(StockBalance).values(
+            store_id=store_id,
+            product_id=product_id,
+            stock=stock,
+        )
+        excluded = insert_stmt.excluded
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=[
+                StockBalance.__table__.c.store_id,
+                StockBalance.__table__.c.product_id,
+            ],
+            set_={
+                "stock": excluded.stock,
+                "updated_at": func.now(),
+            },
+        )
+        await session.execute(upsert_stmt)
+
+    @staticmethod
+    def _build_product_response(
+        product: Product,
+        *,
+        barcodes: Optional[List[ProductBarcode]] = None,
+        category_name: Optional[str] = None,
+        stock_quantity: Optional[int] = None,
+    ) -> ProductResponse:
+        barcode_models = [
+            ProductBarcodeResponse.model_validate(barcode)
+            for barcode in (barcodes if barcodes is not None else list(product.barcodes or []))
+        ]
+        return ProductResponse(
+            id=product.id,
+            business_id=product.business_id,
+            name=product.name,
+            description=product.description,
+            price=float(product.price),
+            cost=float(product.cost),
+            low_stock_threshold=product.low_stock_threshold,
+            image_url=product.image_url,
+            is_active=product.is_active,
+            category_id=product.category_id,
+            created_at=product.created_at,
+            updated_at=product.updated_at,
+            barcodes=barcode_models,
+            category_name=category_name,
+            stock_quantity=stock_quantity,
+        )
+
     @staticmethod
     async def get_all_products(session: AsyncSession, business_id: int) -> List[Product]:
         query = (
@@ -73,48 +183,26 @@ class ProductService:
 
         update_data = product_in.model_dump(exclude_unset=True, exclude={"category", "stock"})
         if hasattr(product_in, 'category') and product_in.category:
-            cat_query = select(Category).where(
-                Category.business_id == product.business_id,
-                Category.name == product_in.category
+            category_id, _ = await ProductService._resolve_category(
+                session,
+                product.business_id,
+                category_name=product_in.category,
             )
-            cat_result = await session.execute(cat_query)
-            category = cat_result.scalars().first()
-            if not category:
-                category = Category(business_id=product.business_id, name=product_in.category)
-                session.add(category)
-                await session.flush()
-            update_data["category_id"] = category.id
+            update_data["category_id"] = category_id
         if "image_url" in update_data:
-            img = update_data["image_url"]
-            if img and img.startswith("http://localhost:8000"):
-                img = img.replace("http://localhost:8000", "")
-            if img and not (img.startswith("/images/") or img.startswith("http://") or img.startswith("https://")):
-                img = None
-            update_data["image_url"] = img
+            update_data["image_url"] = ProductService._normalize_image_url(update_data["image_url"])
         for field, value in update_data.items():
             setattr(product, field, value)
 
         if product_in.stock is not None:
-            from app.models.core import Store
-            store_query = select(Store).where(Store.business_id == product.business_id).limit(1)
-            store_result = await session.execute(store_query)
-            store = store_result.scalars().first()
+            store = await ProductService._get_default_store(session, product.business_id)
             if store:
-                stock_balance_query = select(StockBalance).where(
-                    StockBalance.store_id == store.id,
-                    StockBalance.product_id == product_id
+                await ProductService._set_stock_balance(
+                    session,
+                    store_id=store.id,
+                    product_id=product_id,
+                    stock=product_in.stock,
                 )
-                stock_balance_result = await session.execute(stock_balance_query)
-                stock_balance = stock_balance_result.scalars().first()
-                if stock_balance:
-                    stock_balance.stock = product_in.stock
-                else:
-                    stock_balance = StockBalance(
-                        store_id=store.id,
-                        product_id=product_id,
-                        stock=product_in.stock
-                    )
-                    session.add(stock_balance)
 
         session.add(product)
         await session.commit()
@@ -173,8 +261,14 @@ class ProductService:
         image_url: Optional[str] = None,
         low_stock_threshold: Optional[int] = None,
         stock_quantity: Optional[int] = None,
-    ) -> Optional[Product]:
-        product = await ProductService.get_product_by_id(session, product_id)
+    ) -> Optional[ProductResponse]:
+        query = (
+            select(Product)
+            .where(Product.id == product_id)
+            .options(selectinload(Product.barcodes))
+        )
+        result = await session.execute(query)
+        product = result.scalars().first()
         if not product:
             return None
         if product.business_id != business_id:
@@ -190,43 +284,36 @@ class ProductService:
             raise ValueError("STORE_NOT_FOUND")
 
         product.is_active = True
+        resolved_category_name = None
 
         if name is not None:
             product.name = name
         if description is not None:
             product.description = description
         if category is not None:
-            cat_query = select(Category).where(
-                Category.business_id == product.business_id,
-                Category.name == category
+            resolved_category_id, resolved_category_name = await ProductService._resolve_category(
+                session,
+                product.business_id,
+                category_name=category,
             )
-            cat_result = await session.execute(cat_query)
-            db_category = cat_result.scalars().first()
-            if not db_category:
-                db_category = Category(business_id=product.business_id, name=category)
-                session.add(db_category)
-                await session.flush()
-            product.category_id = db_category.id
+            product.category_id = resolved_category_id
         elif category_id is not None:
-            cat_query = select(Category).where(
-                Category.id == category_id,
-                Category.business_id == business_id
+            resolved_category_id, resolved_category_name = await ProductService._resolve_category(
+                session,
+                business_id,
+                category_id=category_id,
             )
+            product.category_id = resolved_category_id
+        elif product.category_id is not None:
+            cat_query = select(Category.name).where(Category.id == product.category_id)
             cat_result = await session.execute(cat_query)
-            db_category = cat_result.scalars().first()
-            if not db_category:
-                raise ValueError("CATEGORY_NOT_FOUND")
-            product.category_id = category_id
+            resolved_category_name = cat_result.scalar()
         if price is not None:
             product.price = price
         if cost is not None:
             product.cost = cost
         if image_url is not None:
-            if image_url.startswith("http://localhost:8000"):
-                image_url = image_url.replace("http://localhost:8000", "")
-            if not (image_url.startswith("/images/") or image_url.startswith("http://") or image_url.startswith("https://")):
-                image_url = None
-            product.image_url = image_url
+            product.image_url = ProductService._normalize_image_url(image_url)
         if low_stock_threshold is not None:
             product.low_stock_threshold = low_stock_threshold
 
@@ -234,23 +321,12 @@ class ProductService:
         await session.flush()
 
         if stock_quantity is not None:
-            stock_query = select(StockBalance).where(
-                StockBalance.store_id == store_id,
-                StockBalance.product_id == product_id
+            await ProductService._set_stock_balance(
+                session,
+                store_id=store_id,
+                product_id=product_id,
+                stock=stock_quantity,
             )
-            stock_result = await session.execute(stock_query)
-            stock_balance = stock_result.scalars().first()
-
-            if stock_balance:
-                stock_balance.stock = stock_quantity
-            else:
-                stock_balance = StockBalance(
-                    store_id=store_id,
-                    product_id=product_id,
-                    stock=stock_quantity
-                )
-                session.add(stock_balance)
-
             movement = InventoryMovement(
                 business_id=business_id,
                 store_id=store_id,
@@ -262,7 +338,12 @@ class ProductService:
             session.add(movement)
 
         await session.commit()
-        return await ProductService.get_product_by_id(session, product_id)
+        await session.refresh(product)
+        return ProductService._build_product_response(
+            product,
+            category_name=resolved_category_name,
+            stock_quantity=stock_quantity if stock_quantity is not None else 0,
+        )
 
     @staticmethod
     async def get_product_by_barcode(session: AsyncSession, business_id: int, barcode: str) -> Optional[Product]:
@@ -270,7 +351,7 @@ class ProductService:
         return await BarcodeService.get_internal_product_by_barcode(session, business_id, barcode)
 
     @staticmethod
-    async def create_product(session: AsyncSession, product_in: ProductCreate) -> Product:
+    async def create_product(session: AsyncSession, product_in: ProductCreate) -> ProductResponse:
         if product_in.barcode:
             barcode_info = await ProductService.get_barcode_info(session, product_in.business_id, product_in.barcode)
             if barcode_info["exists"]:
@@ -279,63 +360,59 @@ class ProductService:
                 else:
                     raise ValueError("PRODUCT_ALREADY_EXISTS")
 
-        category_name = product_in.category
-        category_id = product_in.category_id
-
         product_data = product_in.model_dump(exclude={"barcode", "category", "stock"})
-        if category_name and not category_id:
-            from app.models.product import Category
-            cat_query = select(Category).where(
-                Category.business_id == product_in.business_id,
-                Category.name == category_name
+        resolved_category_name = None
+        if product_in.category:
+            category_id, resolved_category_name = await ProductService._resolve_category(
+                session,
+                product_in.business_id,
+                category_name=product_in.category,
             )
-            cat_result = await session.execute(cat_query)
-            db_category = cat_result.scalars().first()
-            if not db_category:
-                db_category = Category(business_id=product_in.business_id, name=category_name)
-                session.add(db_category)
-                await session.flush()
-            product_data["category_id"] = db_category.id
+            product_data["category_id"] = category_id
+        elif product_in.category_id is not None:
+            category_id, resolved_category_name = await ProductService._resolve_category(
+                session,
+                product_in.business_id,
+                category_id=product_in.category_id,
+            )
+            product_data["category_id"] = category_id
+
         if product_data.get("image_url"):
-            img = product_data["image_url"]
-            if img.startswith("http://localhost:8000"):
-                img = img.replace("http://localhost:8000", "")
-            # Only accept valid local paths (/images/) or full HTTP(S) URLs
-            if not (img.startswith("/images/") or img.startswith("http://") or img.startswith("https://")):
-                img = None
-            product_data["image_url"] = img
+            product_data["image_url"] = ProductService._normalize_image_url(product_data["image_url"])
         db_product = Product(**product_data)
         session.add(db_product)
-        await session.flush() # To get the product ID
+        await session.flush()
 
+        barcode_record: Optional[ProductBarcode] = None
         if product_in.barcode:
-            barcode = ProductBarcode(
+            barcode_record = ProductBarcode(
                 business_id=product_in.business_id,
                 product_id=db_product.id,
                 barcode=product_in.barcode,
                 is_primary=True
             )
-            session.add(barcode)
+            session.add(barcode_record)
 
-        # Create initial stock balance if stock is provided
+        stock_quantity = product_in.stock if product_in.stock is not None else 0
         if product_in.stock is not None and product_in.stock > 0:
-            from app.models.inventory import StockBalance
-            # Find a store for this business (use first store as default)
-            from app.models.core import Store
-            store_query = select(Store).where(Store.business_id == product_in.business_id).limit(1)
-            store_result = await session.execute(store_query)
-            store = store_result.scalars().first()
-
+            store = await ProductService._get_default_store(session, product_in.business_id)
             if store:
-                stock_balance = StockBalance(
+                await ProductService._set_stock_balance(
+                    session,
                     store_id=store.id,
                     product_id=db_product.id,
-                    stock=product_in.stock
+                    stock=product_in.stock,
                 )
-                session.add(stock_balance)
 
+        await session.flush()
         await session.commit()
-        return await ProductService.get_product_by_id(session, db_product.id)
+        await session.refresh(db_product)
+        return ProductService._build_product_response(
+            db_product,
+            barcodes=[barcode_record] if barcode_record else [],
+            category_name=resolved_category_name,
+            stock_quantity=stock_quantity,
+        )
 
     @staticmethod
     async def delete_product(session: AsyncSession, product_id: int) -> bool:
