@@ -18,7 +18,7 @@ if not exist ".env" (
   exit /b 1
 )
 
-echo Iniciando VentaFacil POS 1.0.2 con base de datos Neon...
+echo Iniciando VentaFacil POS 1.0.3 con base de datos Neon...
 docker compose -f docker-compose.neon.yml up --build -d
 if errorlevel 1 (
   echo No se pudo iniciar VentaFacil con Neon.

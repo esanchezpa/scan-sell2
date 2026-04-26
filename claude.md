@@ -19,6 +19,7 @@ Raiz:
 - `docker-compose.yml`: PostgreSQL 18 en host `5433` y Redis en `6379`.
 - `docker-compose.local.yml`: stack completo local con Postgres, Redis, backend y frontend; usa seed demo.
 - `docker-compose.neon.yml`: stack para usar Neon como base remota; no levanta Postgres local y desactiva seed demo.
+- `start-ventafacil-sin-docker.bat`: modo Windows sin Docker; crea/usa `backend\.venv`, aplica Alembic, inicia backend y frontend contra PostgreSQL local o Neon segun `.env`.
 - `.env` / `.env.example`: configuracion backend y rutas de imagenes.
 - `logs/`: logs tecnicos persistentes del backend particionados por hora; los archivos runtime se ignoran en Git.
 - `backend/`: API FastAPI, modelos, schemas, servicios y migraciones.

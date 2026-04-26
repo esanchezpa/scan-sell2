@@ -1,10 +1,10 @@
 # VentaFacil POS
 
-> Version estable 1.0.2 - POS web e inventario para tienda pequena, con escaneo de codigos de barra, catalogo, ventas, stock e imagenes de productos.
+> Version estable 1.0.3 - POS web e inventario para tienda pequena, con escaneo de codigos de barra, catalogo, ventas, stock e imagenes de productos.
 
 ## Estado del proyecto
 
-VentaFacil POS 1.0.2 consolida el retorno al frontend web React y el backend FastAPI como base estable del producto. El frontend activo esta en `src/`; el directorio `frontend/` pertenece a la etapa Flutter anterior y ya no es la app principal.
+VentaFacil POS 1.0.3 consolida el retorno al frontend web React y el backend FastAPI como base estable del producto. El frontend activo esta en `src/`; el directorio `frontend/` pertenece a la etapa Flutter anterior y ya no es la app principal.
 
 ## Stack
 
@@ -52,13 +52,22 @@ scan-sell2/
 |-- docker-compose.yml       # postgres y redis locales basicos
 |-- docker-compose.local.yml # stack completo local: postgres, redis, backend, frontend
 |-- docker-compose.neon.yml  # stack app/backend contra base Neon
+|-- start-ventafacil*.bat    # accesos rapidos Windows para Docker, Neon y sin Docker
 |-- package.json             # scripts frontend
 |-- README.md
 ```
 
 ## Inicio rapido
 
-### Opcion A: Docker con base de datos local
+Elige una sola ruta de ejecucion. Para una maquina nueva con la base en Neon, la opcion mas simple suele ser **Opcion B**. Para desarrollo tecnico sin contenedores, usa **Opcion C**.
+
+| Opcion | Uso recomendado | Base de datos | Comando principal |
+|--------|-----------------|---------------|-------------------|
+| A. Docker local | Pruebas o demo todo-en-uno | PostgreSQL 18 en Docker | `start-ventafacil.bat` |
+| B. Docker + Neon | Usuario final con BD remota | Neon | `start-ventafacil-neon.bat` |
+| C. Sin Docker | Desarrollo local/manual | PostgreSQL local o Neon | `start-ventafacil-sin-docker.bat` |
+
+### Opcion A: Docker local
 
 Usa esta opcion si quieres que todo viva en la maquina local: PostgreSQL 18, Redis, backend, frontend, imagenes y logs.
 
@@ -94,7 +103,7 @@ logs-ventafacil.bat
 
 Los datos quedan guardados en volumenes Docker. Detener la app no borra productos, ventas ni stock.
 
-### Opcion B: Docker usando base de datos Neon
+### Opcion B: Docker + Neon
 
 Usa esta opcion para una maquina nueva que debe conectarse a la base real en Neon. En este modo Docker no levanta PostgreSQL local; solo levanta Redis, backend y frontend. El seed demo queda desactivado.
 
@@ -144,31 +153,64 @@ logs-ventafacil-neon.bat
 
 La base de datos permanece en Neon. Los contenedores solo guardan localmente imagenes subidas y logs tecnicos.
 
-Los logs tecnicos persistentes del backend se guardan en `logs/backend-YYYYMMDD-HH.log` y `logs/backend-errors-YYYYMMDD-HH.log`. Se particionan por hora y conservan 14 dias por defecto. Los logs SQL de SQLAlchemy y los access logs HTTP no se guardan en archivos persistentes por defecto para evitar crecimiento excesivo.
+### Opcion C: Sin Docker
 
-La imagen Docker de base de datos esta alineada con PostgreSQL 18 (`postgres:18-alpine`). Si ya existia un volumen Docker creado con PostgreSQL 14, no se debe arrancar directamente con 18 sobre ese mismo volumen; hay que migrar con dump/restore o recrear el volumen si solo contenia datos demo.
+Usa esta opcion si prefieres ejecutar backend y frontend directamente en Windows. No levanta PostgreSQL ni Redis. La base puede ser Neon o una instalacion local de PostgreSQL.
 
-Nota tecnica: el contenedor frontend usa el servidor Vite en modo local (`npm run dev -- --host 0.0.0.0`) porque la salida actual de TanStack Start no expone un servidor `preview` standalone compatible con este empaquetado.
+Requisitos:
 
-### 1. Clonar y configurar
+- Python 3.12 o superior en `PATH`.
+- Node.js 20 o superior y npm en `PATH`.
+- Una base PostgreSQL disponible: Neon o PostgreSQL local.
+- Un archivo `.env` configurado en la raiz del proyecto.
 
-```bash
-git clone https://github.com/esanchezpa/scan-sell2.git
-cd scan-sell2
-cp .env.example .env
-```
-
-Edita `.env` con tu `DATABASE_URL`, `REDIS_URL`, CORS e `IMAGES_DIR`.
-
-### 2. Levantar infraestructura local
+Configura `.env`:
 
 ```bash
-docker compose up -d postgres redis
+copy .env.example .env
 ```
 
-Nota: `docker-compose.yml` usa PostgreSQL 18 y lo expone en `127.0.0.1:5433`. Si usas PostgreSQL local en `5432`, ajusta `DATABASE_URL`.
+Para Neon, usa:
 
-### 3. Backend
+```env
+DATABASE_URL=postgresql+psycopg://usuario:password@host-pooler.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+DIRECT_DATABASE_URL=postgresql+psycopg://usuario:password@host.region.aws.neon.tech/base?sslmode=require&channel_binding=require
+SEED_DEMO_DATA=false
+VITE_BUSINESS_ID=6
+VITE_STORE_ID=6
+```
+
+Para PostgreSQL local, ajusta `DATABASE_URL` a tu host/puerto local.
+
+Uso:
+
+```text
+start-ventafacil-sin-docker.bat
+```
+
+El script crea `backend\.venv` si no existe, instala dependencias Python, aplica migraciones Alembic, instala dependencias npm si falta `node_modules`, abre backend y frontend en ventanas separadas y carga:
+
+```text
+http://localhost:5173
+```
+
+Para detener las ventanas iniciadas por este modo:
+
+```text
+stop-ventafacil-sin-docker.bat
+```
+
+Para ver el log persistente mas reciente del backend:
+
+```text
+logs-ventafacil-sin-docker.bat
+```
+
+### Comandos manuales de desarrollo
+
+Estos comandos son utiles para depurar sin BATs.
+
+Backend:
 
 ```bash
 cd backend
@@ -179,25 +221,11 @@ alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Health check:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-### 4. Frontend
-
-Desde la raiz del repo:
+Frontend:
 
 ```bash
 npm install
 npm run dev
-```
-
-App local:
-
-```text
-http://localhost:5173
 ```
 
 Build de produccion:
@@ -205,6 +233,15 @@ Build de produccion:
 ```bash
 npm run build
 ```
+
+### Notas comunes de ejecucion
+
+- Los logs tecnicos persistentes del backend se guardan en `logs/backend-YYYYMMDD-HH.log` y `logs/backend-errors-YYYYMMDD-HH.log`.
+- Los logs se particionan por hora y conservan 14 dias por defecto.
+- Los logs SQL de SQLAlchemy y los access logs HTTP no se guardan en archivos persistentes por defecto para evitar crecimiento excesivo.
+- La imagen Docker de base de datos esta alineada con PostgreSQL 18 (`postgres:18-alpine`).
+- Si ya existia un volumen Docker creado con PostgreSQL 14, migra con dump/restore o recrea el volumen si solo tenia datos demo.
+- El contenedor frontend usa Vite en modo local (`npm run dev -- --host 0.0.0.0`) porque la salida actual de TanStack Start no expone un servidor `preview` standalone compatible con este empaquetado.
 
 ## Variables clave
 
@@ -331,6 +368,10 @@ Para validar reactivacion en Network:
 - `codex/feat-product-reactivation-flow`: rama actual con reactivacion de productos y documentacion 1.0.
 - `ANTIGRAVITY-FEATS-8-react-revert`: base de retorno a React.
 - `ANTIGRAVITY-FEATS-7-backend-fixes`: fixes previos de backend.
+
+## Notas de release 1.0.3
+
+Esta version ordena la documentacion de ejecucion en tres rutas independientes: Docker local, Docker con Neon y ejecucion sin Docker. Tambien agrega BATs para iniciar, detener y revisar logs en modo sin Docker, manteniendo Neon sin seed demo.
 
 ## Notas de release 1.0.2
 
