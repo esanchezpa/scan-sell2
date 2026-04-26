@@ -65,6 +65,26 @@ class ProductService:
         return store_result.scalars().first()
 
     @staticmethod
+    async def _resolve_store(
+        session: AsyncSession,
+        *,
+        business_id: int,
+        store_id: Optional[int],
+    ) -> Optional[Store]:
+        if store_id is not None:
+            store_query = select(Store).where(
+                Store.id == store_id,
+                Store.business_id == business_id,
+            )
+            store_result = await session.execute(store_query)
+            store = store_result.scalars().first()
+            if not store:
+                raise ValueError("STORE_NOT_FOUND")
+            return store
+
+        return await ProductService._get_default_store(session, business_id)
+
+    @staticmethod
     async def _set_stock_balance(
         session: AsyncSession,
         *,
@@ -207,7 +227,11 @@ class ProductService:
         )
 
     @staticmethod
-    async def get_all_products(session: AsyncSession, business_id: int) -> List[Product]:
+    async def get_all_products(
+        session: AsyncSession,
+        business_id: int,
+        store_id: Optional[int] = None,
+    ) -> List[Product]:
         query = (
             select(Product)
             .where(Product.business_id == business_id, Product.is_active == True)
@@ -223,7 +247,10 @@ class ProductService:
         stock_query = select(
             StockBalance.product_id,
             func.coalesce(func.sum(StockBalance.stock), 0).label("total_stock")
-        ).where(StockBalance.product_id.in_(product_ids)).group_by(StockBalance.product_id)
+        ).where(StockBalance.product_id.in_(product_ids))
+        if store_id is not None:
+            stock_query = stock_query.where(StockBalance.store_id == store_id)
+        stock_query = stock_query.group_by(StockBalance.product_id)
         stock_result = await session.execute(stock_query)
         stock_map = {row.product_id: row.total_stock for row in stock_result}
 
@@ -281,7 +308,11 @@ class ProductService:
             setattr(product, field, value)
 
         if product_in.stock is not None:
-            store = await ProductService._get_default_store(session, product.business_id)
+            store = await ProductService._resolve_store(
+                session,
+                business_id=product.business_id,
+                store_id=product_in.store_id,
+            )
             if store:
                 await ProductService._set_stock_balance_with_audit(
                     session,
@@ -486,9 +517,13 @@ class ProductService:
             )
             session.add(barcode_record)
 
-        stock_quantity = product_in.stock if product_in.stock is not None else 0
-        if product_in.stock is not None and product_in.stock > 0:
-            store = await ProductService._get_default_store(session, product_in.business_id)
+        stock_quantity = 0
+        if product_in.stock is not None:
+            store = await ProductService._resolve_store(
+                session,
+                business_id=product_in.business_id,
+                store_id=product_in.store_id,
+            )
             if store:
                 await ProductService._set_stock_balance_with_audit(
                     session,
@@ -499,6 +534,11 @@ class ProductService:
                     movement_type="initial_stock",
                     reference_type="product_creation",
                     reference_id=db_product.id,
+                )
+                stock_quantity = await ProductService._get_store_stock(
+                    session,
+                    store_id=store.id,
+                    product_id=db_product.id,
                 )
 
         await session.flush()

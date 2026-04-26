@@ -19,8 +19,12 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 @router.get("/", response_model=List[ProductResponse])
-async def get_products(business_id: int, db: AsyncSession = Depends(get_db)):
-    return await ProductService.get_all_products(db, business_id)
+async def get_products(
+    business_id: int,
+    store_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    return await ProductService.get_all_products(db, business_id, store_id=store_id)
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -79,6 +83,8 @@ async def create_product(product_in: ProductCreate, db: AsyncSession = Depends(g
         elif error_msg.startswith("PRODUCT_INACTIVE_EXISTS:"):
             product_id = error_msg.split(":")[1]
             raise HTTPException(status_code=409, detail=f"PRODUCT_INACTIVE_EXISTS:{product_id}")
+        elif error_msg == "STORE_NOT_FOUND":
+            raise HTTPException(status_code=400, detail="STORE_NOT_FOUND")
         elif error_msg == "STOCK_CANNOT_BE_NEGATIVE":
             raise HTTPException(status_code=400, detail="STOCK_CANNOT_BE_NEGATIVE")
         else:

@@ -54,6 +54,7 @@ class ProductBase(BaseModel):
 
 class ProductCreate(ProductBase):
     business_id: int
+    store_id: Optional[int] = None
     barcode: Optional[str] = None
     stock: Optional[int] = None
     category: Optional[str] = None
@@ -68,6 +69,7 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
     category_id: Optional[int] = None
     category: Optional[str] = None
+    store_id: Optional[int] = None
     stock: Optional[int] = None
 
 class ProductResponse(ProductBase):

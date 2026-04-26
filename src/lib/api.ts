@@ -79,7 +79,7 @@ export const api = {
     return `${IMAGE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
   },
   products: {
-    list: () => request<any[]>(`/products/?business_id=${BUSINESS_ID}`),
+    list: () => request<any[]>(`/products/?business_id=${BUSINESS_ID}&store_id=${STORE_ID}`),
     get: (id: string) => request<any>(`/products/${id}`),
     getByBarcode: (barcode: string) => request<any>(`/products/barcode/${encodeURIComponent(barcode)}?business_id=${BUSINESS_ID}`),
     barcodeExists: (barcode: string) => request<{exists: boolean; is_deleted: boolean; product_id: number | null}>(`/products/barcode-exists/${encodeURIComponent(barcode)}?business_id=${BUSINESS_ID}`),

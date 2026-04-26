@@ -300,6 +300,7 @@ export const useStore = create<StoreState>()(
         const product = await api.products.create({
           ...p,
           business_id: BUSINESS_ID,
+          store_id: STORE_ID,
           low_stock_threshold: p.lowStockAlert,
           image_url: p.imageUrl
         });
