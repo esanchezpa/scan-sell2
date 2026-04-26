@@ -133,6 +133,7 @@ Ventas:
 
 - `POST /sales`
 - `GET /sales/history?business_id=...`
+- `DELETE /sales/{sale_id}?business_id=...` cancela la venta, restaura stock y oculta la venta del historial activo.
 
 Settings:
 

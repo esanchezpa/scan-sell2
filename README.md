@@ -320,6 +320,7 @@ Ventas:
 
 - `POST /sales`
 - `GET /sales/history?business_id=6`
+- `DELETE /sales/{sale_id}?business_id=6`
 
 Inventario:
 

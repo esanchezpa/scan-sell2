@@ -125,7 +125,7 @@ interface StoreState {
   findByBarcode: (code: string) => Product | undefined;
 
   addSale: (s: Omit<Sale, "id" | "date">) => Promise<Sale>;
-  deleteSale: (id: string) => void;
+  deleteSale: (id: string) => Promise<void>;
 
   addCustomer: (c: Omit<Customer, "id">) => Customer;
   updateCustomer: (id: string, c: Partial<Customer>) => void;
@@ -384,7 +384,29 @@ export const useStore = create<StoreState>()(
 
         return newSale;
       },
-      deleteSale: (id) => set((s) => ({ sales: s.sales.filter((x) => x.id !== id) })),
+      deleteSale: async (id) => {
+        const sale = get().sales.find((x) => x.id === id);
+        await api.sales.delete(id);
+
+        const restoredQuantities = sale?.items.reduce<Record<string, number>>((acc, item) => {
+          acc[item.productId] = (acc[item.productId] ?? 0) + item.quantity;
+          return acc;
+        }, {});
+
+        set((state) => ({
+          sales: state.sales.filter((x) => x.id !== id),
+          products: restoredQuantities
+            ? state.products.map((product) => ({
+                ...product,
+                stock: product.stock + (restoredQuantities[product.id] ?? 0),
+              }))
+            : state.products,
+        }));
+
+        void fetchBackendSnapshot()
+          .then((snapshot) => set(snapshot))
+          .catch((err) => set({ error: (err as Error).message }));
+      },
 
       addCustomer: (c) => {
         const customer = { ...c, id: Math.random().toString(36).slice(2, 10) };

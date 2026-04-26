@@ -24,3 +24,22 @@ async def create_sale(sale_in: SaleCreate, db: AsyncSession = Depends(get_db)):
 @router.get("/history", response_model=List[SaleResponse])
 async def get_history(business_id: int = 1, db: AsyncSession = Depends(get_db)):
     return await SalesService.get_sales_history(db, business_id)
+
+
+@router.delete("/{sale_id}")
+async def delete_sale(
+    sale_id: int,
+    business_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        sale = await SalesService.cancel_sale(db, sale_id, business_id=business_id)
+    except ValueError as e:
+        if str(e) == "SALE_NOT_COMPLETED":
+            raise HTTPException(status_code=400, detail="SALE_NOT_COMPLETED")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+
+    return {"ok": True, "status": sale.status}

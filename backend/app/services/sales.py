@@ -3,6 +3,8 @@ from collections import defaultdict
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import case, func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import selectinload
 
 from app.models.sales import Sale, SaleItem, SalePayment
 from app.models.inventory import StockBalance, InventoryMovement
@@ -122,12 +124,84 @@ class SalesService:
 
     @staticmethod
     async def get_sales_history(session: AsyncSession, business_id: int) -> List[Sale]:
-        from sqlalchemy.orm import selectinload
         query = (
             select(Sale)
-            .where(Sale.business_id == business_id)
+            .where(Sale.business_id == business_id, Sale.status != "cancelled")
             .options(selectinload(Sale.items), selectinload(Sale.payments))
             .order_by(Sale.created_at.desc())
         )
         result = await session.execute(query)
         return list(result.scalars().all())
+
+    @staticmethod
+    async def cancel_sale(
+        session: AsyncSession,
+        sale_id: int,
+        business_id: int | None = None,
+    ) -> Sale | None:
+        """
+        Cancels a completed sale without deleting historical rows.
+        Stock is restored and audited with positive inventory movements.
+        """
+        filters = [Sale.id == sale_id]
+        if business_id is not None:
+            filters.append(Sale.business_id == business_id)
+
+        result = await session.execute(
+            select(Sale)
+            .where(*filters)
+            .options(selectinload(Sale.items), selectinload(Sale.payments))
+            .with_for_update()
+        )
+        sale = result.scalars().first()
+        if not sale:
+            return None
+
+        if sale.status == "cancelled":
+            return sale
+        if sale.status != "completed":
+            raise ValueError("SALE_NOT_COMPLETED")
+
+        restored_quantities: dict[int, int] = defaultdict(int)
+        for item in sale.items:
+            if item.product_id:
+                restored_quantities[item.product_id] += item.quantity
+
+        if restored_quantities:
+            stock_rows = [
+                {
+                    "store_id": sale.store_id,
+                    "product_id": product_id,
+                    "stock": quantity,
+                }
+                for product_id, quantity in restored_quantities.items()
+            ]
+            stock_insert = pg_insert(StockBalance).values(stock_rows)
+            await session.execute(
+                stock_insert.on_conflict_do_update(
+                    index_elements=[StockBalance.store_id, StockBalance.product_id],
+                    set_={
+                        "stock": StockBalance.stock + stock_insert.excluded.stock,
+                        "updated_at": func.now(),
+                    },
+                )
+            )
+
+        for product_id, quantity in restored_quantities.items():
+            session.add(
+                InventoryMovement(
+                    business_id=sale.business_id,
+                    store_id=sale.store_id,
+                    product_id=product_id,
+                    movement_type="return",
+                    quantity=quantity,
+                    reference_type="sale_cancellation",
+                    reference_id=sale.id,
+                    notes="Sale cancelled",
+                    created_by=sale.cashier_id,
+                )
+            )
+
+        sale.status = "cancelled"
+        await session.commit()
+        return sale

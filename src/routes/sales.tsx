@@ -143,6 +143,7 @@ function SalesPage() {
   const [openSale, setOpenSale] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
 
   useEffect(() => {
     setSalesRouteActive(true);
@@ -246,13 +247,18 @@ function SalesPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (confirm("¿Eliminar esta venta?")) {
-                        deleteSale(s.id);
-                        toast.success("Venta eliminada");
+                        setDeletingSaleId(s.id);
+                        deleteSale(s.id)
+                          .then(() => toast.success("Venta eliminada"))
+                          .catch((err) => toast.error((err as Error).message))
+                          .finally(() => setDeletingSaleId(null));
                       }
                     }}
-                    className="mt-1 text-xs text-destructive hover:underline"
+                    disabled={deletingSaleId === s.id}
+                    className="mt-1 text-xs text-destructive hover:underline disabled:opacity-60"
                   >
-                    <Trash2 className="inline h-3 w-3" /> Eliminar
+                    <Trash2 className="inline h-3 w-3" />{" "}
+                    {deletingSaleId === s.id ? "Eliminando..." : "Eliminar"}
                   </button>
                 </div>
               </li>

@@ -111,6 +111,10 @@ export const api = {
   sales: {
     create: (data: any) => request<any>("/sales/", { method: "POST", body: JSON.stringify(data) }),
     getHistory: () => request<any[]>(`/sales/history?business_id=${BUSINESS_ID}`),
+    delete: (id: string | number) =>
+      request<{ ok: boolean; status: string }>(`/sales/${id}?business_id=${BUSINESS_ID}`, {
+        method: "DELETE",
+      }),
   },
   reports: {
     getDashboard: () => request<any>("/reports/dashboard"),
