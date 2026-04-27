@@ -294,7 +294,10 @@ class ProductService:
         if not product:
             return None
 
-        update_data = product_in.model_dump(exclude_unset=True, exclude={"category", "stock"})
+        update_data = product_in.model_dump(
+            exclude_unset=True,
+            exclude={"category", "stock", "store_id"},
+        )
         if hasattr(product_in, 'category') and product_in.category:
             category_id, _ = await ProductService._resolve_category(
                 session,
@@ -484,7 +487,9 @@ class ProductService:
                 else:
                     raise ValueError("PRODUCT_ALREADY_EXISTS")
 
-        product_data = product_in.model_dump(exclude={"barcode", "category", "stock"})
+        product_data = product_in.model_dump(
+            exclude={"barcode", "category", "stock", "store_id"}
+        )
         resolved_category_name = None
         if product_in.category:
             category_id, resolved_category_name = await ProductService._resolve_category(
